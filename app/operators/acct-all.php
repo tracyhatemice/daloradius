@@ -41,6 +41,8 @@
                     "name" => t('all','HotSpot'),
                     "username" => t('all','Username'),
                     "framedipaddress" => t('all','IPAddress'),
+                    "callingstationid" => t('all','CallingStationId'),
+                    t('all','Location'),
                     "acctstarttime" => t('all','StartTime'),
                     "acctstoptime" => t('all','StopTime'),
                     "acctsessiontime" => t('all','TotalTime'),
@@ -101,8 +103,8 @@
         $drawNumberLinks = strtolower($configValues['CONFIG_IFACE_TABLES_LISTING_NUM']) == "yes" && $maxPage > 1;
         
         $sql = sprintf(
-            "SELECT ra.RadAcctId, dhs.name AS hotspot, ra.username, ra.FramedIPAddress, ra.AcctStartTime,
-                    ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
+            "SELECT ra.RadAcctId, dhs.name AS hotspot, ra.username, ra.FramedIPAddress, ra.CallingStationId,
+                    ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
                     CASE WHEN ra.AcctTerminateCause = '0' THEN 'Unknown' ELSE ra.AcctTerminateCause END AS AcctTerminateCause,
                     ra.NASIPAddress
              FROM %s AS ra
@@ -160,7 +162,7 @@
                 $row[$i] = htmlspecialchars($row[$i], ENT_QUOTES, 'UTF-8');
             }
             
-            list($radAcctId, $hotspot, $username, $framedIPAddress, $acctStartTime, $acctStopTime,
+            list($radAcctId, $hotspot, $username, $framedIPAddress, $callingStationId, $acctStartTime, $acctStopTime,
                  $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $nasIPAddress) = $row;
                 
             $acctSessionTime = time2str($acctSessionTime, true);
@@ -239,8 +241,15 @@
                 $tooltip4 = (!empty($nasIPAddress)) ? $nasIPAddress : "(n/a)";
             }
 
+            $callingStationIdDisplay = (!empty($callingStationId)) ? $callingStationId : "(n/a)";
+
+            // Lookup location based on calling station ID
+            $locationIp = extract_ip_from_calling_station_id($callingStationId);
+            $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
+            $locationDisplay = (!empty($location)) ? $location : "(n/a)";
+
             // define table row
-            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $acctStartTime, $acctStopTime,
+            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $callingStationIdDisplay, $locationDisplay, $acctStartTime, $acctStopTime,
                                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $tooltip4);
 
             // print table row

@@ -600,3 +600,72 @@ function count_nas($dbSocket) {
 function get_numrows($dbSocket, $query) {
     return $dbSocket->query($query)->fetchrow()[0];
 }
+
+/**
+ * Extracts a valid IP address from a calling station ID string.
+ * Handles various formats like:
+ * - ::ffff:123.123.123.123 -> 123.123.123.123
+ * - 123.123.123.123 =5B4500=5D -> 123.123.123.123
+ * - 2408:8207:8207:8207:8207:8207:8207:8af=5B4500=5D -> 2408:8207:8207:8207:8207:8207:8207:8af
+ *
+ * @param string $callingStationId The raw calling station ID string
+ * @return string|null The extracted IP address or null if not valid
+ */
+function extract_ip_from_calling_station_id($callingStationId) {
+    if (empty($callingStationId)) {
+        return null;
+    }
+
+    $ip = $callingStationId;
+
+    // Remove ::ffff: prefix (IPv4-mapped IPv6 address)
+    if (stripos($ip, '::ffff:') === 0) {
+        $ip = substr($ip, 7);
+    }
+
+    // Remove trailing encoded data like =5B4500=5D or similar patterns
+    $ip = preg_replace('/[=\s].*$/', '', $ip);
+
+    // Trim whitespace
+    $ip = trim($ip);
+
+    // Validate as IPv4 or IPv6
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6)) {
+        return $ip;
+    }
+
+    return null;
+}
+
+/**
+ * Looks up the geolocation (city) for a given IP address.
+ *
+ * @param string $ip The IP address to look up
+ * @return string The city name or empty string if lookup fails
+ */
+function geoip_lookup_city($ip) {
+    if (empty($ip)) {
+        return "";
+    }
+
+    $url = sprintf("http://geoip:10069/?ip=%s&lookup=city&filter=city.names.en", urlencode($ip));
+
+    // Use file_get_contents with a short timeout
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 2,
+            'ignore_errors' => true
+        ]
+    ]);
+
+    $result = @file_get_contents($url, false, $context);
+
+    if ($result === false) {
+        return "";
+    }
+
+    // Remove quotes from the response
+    $result = trim($result, " \t\n\r\0\x0B\"'");
+
+    return $result;
+}
