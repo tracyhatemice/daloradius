@@ -30,6 +30,7 @@
     include_once("lang/main.php");
     include_once("../common/includes/validation.php");
     include("../common/includes/layout.php");
+    include("include/management/functions.php");
 
     // validate this parameter before including menu
     $username = (array_key_exists('username', $_GET) && !empty(str_replace("%", "", trim($_GET['username']))))
@@ -47,6 +48,7 @@
                    t('all','Name'),
                    'framedipaddress' => t('all','Framed IP Address',),
                    'calledstationid' => t('all','Calling Station ID',),
+                   t('all','Location'),
                    'acctstarttime' => t('all','StartTime'),
                    'acctsessiontime' => t('all','TotalTime'),
                    'hotspot' => t('all','HotSpot'),
@@ -284,10 +286,15 @@
                         'value' => sprintf("%s||%s", $this_username, $this_starttime));
             $checkbox = get_checkbox_str($d);
 
+            // Lookup location based on calling station ID
+            $locationIp = extract_ip_from_calling_station_id($this_callingstationid);
+            $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
+            $locationDisplay = (!empty($location)) ? $location : "(n/a)";
+
             // define table row
             $table_row = array(
                                 $checkbox, $tooltip2, $this_name, $this_framedipaddress, $this_callingstationid,
-                                $this_starttime, $this_sessiontime, $this_hotspot, $this_nasshortname, $tooltip1
+                                $locationDisplay, $this_starttime, $this_sessiontime, $this_hotspot, $this_nasshortname, $tooltip1
                               );
 
             // print table row

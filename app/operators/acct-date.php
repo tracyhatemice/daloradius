@@ -52,6 +52,7 @@
                 "username" => t('all','Username'),
                 "framedipaddress" => t('all','IPAddress'),
                 "callingstationid" => t('all','CallingStationId'),
+                t('all','Location'),
                 "acctstarttime" => t('all','StartTime'),
                 "acctstoptime" => t('all','StopTime'),
                 "acctsessiontime" => t('all','TotalTime'),
@@ -276,8 +277,13 @@
 
                 $callingStationIdDisplay = (!empty($callingStationId)) ? $callingStationId : "(n/a)";
 
+                // Lookup location based on calling station ID
+                $locationIp = extract_ip_from_calling_station_id($callingStationId);
+                $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
+                $locationDisplay = (!empty($location)) ? $location : "(n/a)";
+
                 // define table row
-                $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $callingStationIdDisplay, $acctStartTime, $acctStopTime,
+                $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $callingStationIdDisplay, $locationDisplay, $acctStartTime, $acctStopTime,
                                     $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $tooltip4);
 
                 // print table row
