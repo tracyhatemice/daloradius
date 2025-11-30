@@ -791,8 +791,6 @@ function geoip_lookup_city($ip) {
         return "";
     }
 
-    $url = sprintf("http://geoip:10069/?ip=%s&lookup=city&filter=city.names.en", urlencode($ip));
-
     // Use file_get_contents with a short timeout
     $context = stream_context_create([
         'http' => [
@@ -801,6 +799,8 @@ function geoip_lookup_city($ip) {
         ]
     ]);
 
+    // Try city.names.en filter first
+    $url = sprintf("http://geoip:10069/?ip=%s&lookup=city&filter=city.names.en", urlencode($ip));
     $result = @file_get_contents($url, false, $context);
 
     if ($result === false) {
@@ -809,6 +809,19 @@ function geoip_lookup_city($ip) {
 
     // Remove quotes from the response
     $result = trim($result, " \t\n\r\0\x0B\"'");
+
+    // If city filter is not available, fallback to country filter
+    if ($result === "Invalid FILTER provided") {
+        $url = sprintf("http://geoip:10069/?ip=%s&lookup=city&filter=country.names.en", urlencode($ip));
+        $result = @file_get_contents($url, false, $context);
+
+        if ($result === false) {
+            return "";
+        }
+
+        // Remove quotes from the response
+        $result = trim($result, " \t\n\r\0\x0B\"'");
+    }
 
     return $result;
 }
