@@ -29,7 +29,7 @@
     include_once implode(DIRECTORY_SEPARATOR, [ $configValues['OPERATORS_LANG'], 'main.php' ]);
     include implode(DIRECTORY_SEPARATOR, [ $configValues['COMMON_INCLUDES'], 'validation.php' ]);
     include implode(DIRECTORY_SEPARATOR, [ $configValues['COMMON_INCLUDES'], 'layout.php' ]);
-
+    include("include/management/functions.php");
 
     // validate this parameter before including menu
     $username = (array_key_exists('username', $_GET) && !empty(str_replace("%", "", trim($_GET['username']))))
@@ -47,6 +47,7 @@
                    t('all','Name'),
                    'framedipaddress' => t('all','Framed IP Address'),
                    'calledstationid' => t('all','Calling Station ID'),
+                   t('all','Location'),
                    'nasshortname' => t('all','Nas'),
                    'hotspot' => t('all','HotSpot'),
                    'acctstarttime' => t('all','StartTime'),
@@ -292,10 +293,15 @@
                         'value' => sprintf("%s||%s", $this_username, $this_starttime));
             $checkbox = get_checkbox_str($d);
 
+            // Lookup location based on calling station ID
+            $locationIp = extract_ip_from_calling_station_id($this_callingstationid);
+            $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
+            $locationDisplay = (!empty($location)) ? $location : "(n/a)";
+
             // define table row
             $table_row = array(
                                 $checkbox, $tooltip2, $this_name, $this_framedipaddress, $this_callingstationid,
-                                $nas_tooltip, $this_hotspot, $this_starttime, $this_sessiontime, $tooltip1
+                                $locationDisplay, $nas_tooltip, $this_hotspot, $this_starttime, $this_sessiontime, $tooltip1
                               );
 
             // print table row
