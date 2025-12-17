@@ -72,9 +72,12 @@ function send_email($config_values, $recipient_email_address, $recipient_name, $
         $mail->Subject = $subject;
         $mail->Body = $body;
 
+        // Set email charset
+        $mail->CharSet = $config_values['CONFIG_MAIL_CHARSET'];
+
         if (is_array($attachment) && array_key_exists('content', $attachment) && array_key_exists('filename', $attachment) ) {
             $mail->addStringAttachment($attachment['content'], $attachment['filename'],
-                                       PHPMailer\PHPMailer\PHPMailer::ENCODING_BASE64, 'application/pdf', 'attachment');
+                                       PHPMailer\PHPMailer\PHPMailer::ENCODING_BASE64, 'text/plain', 'attachment');
         }
 
         // Send the email

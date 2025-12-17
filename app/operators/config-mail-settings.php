@@ -149,6 +149,17 @@
                 $configValues['CONFIG_MAIL_SMTP_PASSWORD'] = "";
             }
 
+            // validate email charset
+            if (
+                    array_key_exists('CONFIG_MAIL_CHARSET', $_POST) &&
+                    !empty(trim($_POST['CONFIG_MAIL_CHARSET'])) &&
+                    in_array(strtolower(trim($_POST['CONFIG_MAIL_CHARSET'])), array("utf-8", "iso-8859-1", "us-ascii", "utf-16", "windows-1251", "iso-8859-15", "iso-2022-jp", "shift-jis", "koi8-r", "windows-1252", "iso-8859-5"))
+               ) {
+               $configValues['CONFIG_MAIL_CHARSET'] = strtolower(trim($_POST['CONFIG_MAIL_CHARSET']));
+            } else {
+                $configValues['CONFIG_MAIL_CHARSET'] = "utf-8";
+            }
+
             // display message
             if (count($invalid_input) > 0) {
                 $failureMsg = sprintf("Invalid input: [%s]", implode(", ", array_values($invalid_input)));
@@ -298,6 +309,16 @@
         "pattern" => trim(SUBJECT_PREFIX_REGEX, "/"),
         "title" => "allowed letters, numbers, spaces, and square brackets",
         "tooltipText" => "A prefix for the email subjects",
+    );
+
+    $input_descriptors1[] = array(
+        "type" => "select",
+        "options" => array("utf-8", "iso-8859-1", "us-ascii", "utf-16", "windows-1251", "iso-8859-15", "iso-2022-jp", "shift-jis", "koi8-r", "windows-1252", "iso-8859-5"),
+        "caption" => "Email Character Encoding",
+        "name" => 'CONFIG_MAIL_CHARSET',
+        "selected_value" => (!array_key_exists('CONFIG_MAIL_CHARSET', $invalid_input)
+            ? $configValues['CONFIG_MAIL_CHARSET'] : "utf-8"),
+        "tooltipText" => "Character encoding for outgoing emails",
     );
 
 
