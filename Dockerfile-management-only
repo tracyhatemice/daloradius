@@ -4,6 +4,9 @@
 
 FROM tracyhatemice/php:8.5.2-apache
 
+### --- Install PEAR DB (required for daloRADIUS database layer) ---
+RUN pear install DB
+
 ### --- Configure Apache VirtualHost for operators only ---
 RUN printf '<VirtualHost *:80>\n\
     ServerAdmin operators@localhost\n\
