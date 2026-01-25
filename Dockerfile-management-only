@@ -1,0 +1,54 @@
+# daloRADIUS Management (Operators) Only Dockerfile
+# Build: docker build -f Dockerfile-management-only -t daloradius-management .
+# Run:   docker run -p 8000:80 -d daloradius-management
+
+FROM tracyhatemice/php:8.5.2-apache
+
+### --- Configure Apache VirtualHost for operators only ---
+RUN printf '<VirtualHost *:80>\n\
+    ServerAdmin operators@localhost\n\
+    DocumentRoot /var/www/daloradius/app/operators\n\
+\n\
+    <Directory /var/www/daloradius/app/operators>\n\
+        Options -Indexes +FollowSymLinks\n\
+        AllowOverride None\n\
+        Require all granted\n\
+    </Directory>\n\
+\n\
+    <Directory /var/www/daloradius>\n\
+        Require all denied\n\
+    </Directory>\n\
+\n\
+    # Allow access to common assets\n\
+    Alias /static /var/www/daloradius/app/common/static\n\
+    <Directory /var/www/daloradius/app/common/static>\n\
+        Options -Indexes +FollowSymLinks\n\
+        AllowOverride None\n\
+        Require all granted\n\
+    </Directory>\n\
+\n\
+    ErrorLog ${APACHE_LOG_DIR}/daloradius-error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/daloradius-access.log combined\n\
+</VirtualHost>\n' > /etc/apache2/sites-available/operators.conf \
+    && a2dissite 000-default.conf \
+    && a2ensite operators.conf
+
+### --- Copy application files ---
+COPY app/operators /var/www/daloradius/app/operators
+COPY app/common /var/www/daloradius/app/common
+COPY init.sh /var/www/daloradius/init.sh
+
+### --- Set permissions and create directories ---
+RUN mkdir -p /data \
+    && chown -R www-data:www-data /var/www/daloradius \
+    && touch /tmp/daloradius.log \
+    && chown www-data:www-data /tmp/daloradius.log \
+    && chmod +x /var/www/daloradius/init.sh
+
+EXPOSE 80
+
+LABEL Author="tracyhatemice"
+LABEL Base="tracyhatemice/php:8.5.2-apache"
+LABEL Description="daloRADIUS Management (Operators) interface"
+
+CMD ["/bin/bash", "/var/www/daloradius/init.sh"]
