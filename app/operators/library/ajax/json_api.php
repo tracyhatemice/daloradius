@@ -29,6 +29,7 @@ include('../check_operator_perm.php');
 // datatype => allowed actions
 $whitelist = array();
 $whitelist["usernames"] = array( "list" );
+$whitelist["nasipaddresses"] = array( "list" );
 
 $data = array();
 
@@ -81,7 +82,37 @@ if (isset($_GET['datatype']) && in_array(strtolower(trim($_GET['datatype'])), ar
             
                 break; // case "usernames"
             }
-                
+
+            case "nasipaddresses": {
+
+                switch ($action) {
+
+                    default:
+                    case "list":
+                        if (isset($_GET['nasipaddress']) && strlen(trim($_GET['nasipaddress'])) >= 1) {
+
+                            include('../../../common/includes/db_open.php');
+
+                            $nasipaddress = trim($_GET['nasipaddress']);
+
+                            $table = $configValues['CONFIG_DB_TBL_RADACCT'];
+
+                            $sql = sprintf("SELECT DISTINCT(NASIPAddress) FROM %s WHERE NASIPAddress LIKE '%%%s%%' ORDER BY NASIPAddress ASC",
+                                           $table, $dbSocket->escapeSimple($nasipaddress));
+                            $res = $dbSocket->query($sql);
+                            while ( $row = $res->fetchrow() ) {
+                                $data[] = $row[0];
+                            }
+
+                            include('../../../common/includes/db_close.php');
+                        }
+
+                        break; // case "list"
+                }
+
+                break; // case "nasipaddresses"
+            }
+
             // case "other category"
         }
     
