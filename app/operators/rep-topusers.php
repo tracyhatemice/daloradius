@@ -48,6 +48,21 @@
               ? str_replace("%", "", trim($_GET['username'])) : "";
     $username_enc = (!empty($username)) ? htmlspecialchars($username, ENT_QUOTES, 'UTF-8') : "";
 
+    $nasipaddress = "";
+    $nasipaddresses = array();
+    if (array_key_exists('nasipaddress', $_GET) && isset($_GET['nasipaddress'])) {
+        $raw_nasips = array_map('trim', explode(',', $_GET['nasipaddress']));
+        foreach ($raw_nasips as $ip) {
+            if (!empty($ip) && preg_match(LOOSE_IP_REGEX, $ip) !== false) {
+                $nasipaddresses[] = $ip;
+            }
+        }
+        if (count($nasipaddresses) > 0) {
+            $nasipaddress = implode(',', $nasipaddresses);
+        }
+    }
+    $nasipaddress_enc = (!empty($nasipaddress)) ? htmlspecialchars($nasipaddress, ENT_QUOTES, 'UTF-8') : "";
+
     // the array $cols has multiple purposes:
     // - its keys (when non-numerical) can be used
     //   - for validating user input
@@ -114,6 +129,15 @@
     if (!empty($username)) {
         $partial_query_params[] = sprintf("username=%s", urlencode($username_enc));
         $sql_WHERE[] = sprintf("username LIKE '%%%s%%'", $dbSocket->escapeSimple($username));
+    }
+
+    if (count($nasipaddresses) > 0) {
+        $partial_query_params[] = sprintf("nasipaddress=%s", urlencode($nasipaddress_enc));
+        $nasip_conditions = array();
+        foreach ($nasipaddresses as $ip) {
+            $nasip_conditions[] = sprintf("NASIPAddress LIKE '%%%s%%'", $dbSocket->escapeSimple($ip));
+        }
+        $sql_WHERE[] = "(" . implode(" OR ", $nasip_conditions) . ")";
     }
 
     // setup php session variables for exporting

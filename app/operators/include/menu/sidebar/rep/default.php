@@ -32,7 +32,7 @@ include_once("../common/includes/validation.php");
 $autocomplete = (isset($configValues['CONFIG_IFACE_AUTO_COMPLETE']) &&
                  strtolower($configValues['CONFIG_IFACE_AUTO_COMPLETE']) === "yes");
 
-global $username, $startdate, $enddate, $radiusReply, $valid_radiusReplys, $orderBy;
+global $username, $startdate, $enddate, $radiusReply, $valid_radiusReplys, $orderBy, $nasipaddress;
 
 include_once("include/management/populate_selectbox.php");
 $usernameOnline_options = get_online_users();
@@ -126,6 +126,24 @@ $descriptors1[] = array( 'type' => 'form', 'title' => t('button','NewUsers'), 'a
 $components = array();
 
 $components[] = $username_input;
+$components[] = array(
+                            "id" => 'random',
+                            "name" => "nasipaddress",
+                            "type" => "text",
+                            "value" => ((isset($nasipaddress)) ? $nasipaddress : ""),
+                            "datalist" => array(
+                                                    'type' => 'ajax',
+                                                    'url' => 'library/ajax/json_api.php',
+                                                    'search_param' => 'nasipaddress',
+                                                    'params' => array(
+                                                                        'datatype' => 'nasipaddresses',
+                                                                        'action' => 'list',
+                                                                     ),
+                                               ),
+                            "caption" => t('all','NASIPAddress'),
+                            "tooltipText" => "Type in the NAS IP address (comma-separated for multiple)",
+                            "sidebar" => true,
+                       );
 $components = array_merge($components, $date_select_components);
 
 $components[] = array(
