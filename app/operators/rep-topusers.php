@@ -132,7 +132,7 @@
     }
 
     if (count($nasipaddresses) > 0) {
-        $partial_query_params[] = sprintf("nasipaddress=%s", urlencode($nasipaddress_enc));
+        $partial_query_params[] = sprintf("nasipaddress=%s", $nasipaddress_enc);
         $nasip_conditions = array();
         foreach ($nasipaddresses as $ip) {
             $nasip_conditions[] = sprintf("NASIPAddress LIKE '%%%s%%'", $dbSocket->escapeSimple($ip));
