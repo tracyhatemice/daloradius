@@ -90,15 +90,27 @@ if (isset($_GET['datatype']) && in_array(strtolower(trim($_GET['datatype'])), ar
 
                             include('../../../common/includes/db_open.php');
 
-                            $nasipaddress = trim($_GET['nasipaddress']);
+                            $raw_input = trim($_GET['nasipaddress']);
+                            $prefix = "";
+                            $search_term = $raw_input;
 
-                            $table = $configValues['CONFIG_DB_TBL_RADACCT'];
+                            // support comma-separated input: search only on the last token
+                            // and prefix results with the already-entered IPs
+                            if (strpos($raw_input, ',') !== false) {
+                                $parts = explode(',', $raw_input);
+                                $search_term = trim(array_pop($parts));
+                                $prefix = implode(',', $parts) . ',';
+                            }
 
-                            $sql = sprintf("SELECT DISTINCT(NASIPAddress) FROM %s WHERE NASIPAddress LIKE '%%%s%%' ORDER BY NASIPAddress ASC",
-                                           $table, $dbSocket->escapeSimple($nasipaddress));
-                            $res = $dbSocket->query($sql);
-                            while ( $row = $res->fetchrow() ) {
-                                $data[] = $row[0];
+                            if (strlen($search_term) >= 1) {
+                                $table = $configValues['CONFIG_DB_TBL_RADACCT'];
+
+                                $sql = sprintf("SELECT DISTINCT(NASIPAddress) FROM %s WHERE NASIPAddress LIKE '%%%s%%' ORDER BY NASIPAddress ASC",
+                                               $table, $dbSocket->escapeSimple($search_term));
+                                $res = $dbSocket->query($sql);
+                                while ( $row = $res->fetchrow() ) {
+                                    $data[] = $prefix . $row[0];
+                                }
                             }
 
                             include('../../../common/includes/db_close.php');
