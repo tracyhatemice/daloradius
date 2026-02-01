@@ -126,7 +126,12 @@
                     $firstname = trim($firstname);
                     $lastname = trim($lastname);
                     
-                    if (preg_match(EMAIL_LIKE_USERNAME_REGEX, $username) === 1 && !array_key_exists($username, $data)) {
+                    // Validate username as MAC address or PIN code
+                    $isValidMacOrPin = (preg_match(MACADDR_REGEX, $username) === 1 || 
+                                        preg_match(PINCODE_REGEX, $username) === 1 ||
+                                        preg_match(IP_REGEX, $username) === 1);
+                    
+                    if ($isValidMacOrPin && !array_key_exists($username, $data)) {
                         $data[$username] = array( "Accept", $email, $firstname, $lastname );
                     }
 
@@ -146,14 +151,21 @@
                 foreach ($data as $subject => $arr) {
                     list( $value, $email, $firstname, $lastname ) = $arr;
                     
-                    $hashed_value = hashPasswordAttribute($passwordType, $value);
-
-                    // skipping this user if it exists or insert fails
-                    if (
-                            user_exists($dbSocket, $subject) ||
-                            !insert_single_attribute($dbSocket, $subject, $passwordType, ":=", $hashed_value)
-                       ) {
+                    // skipping this user if it exists
+                    if (user_exists($dbSocket, $subject)) {
                         continue;
+                    }
+
+                    // FORCE Auth-Type := Accept for Auth-Type passwordType (MAC/PIN)
+                    if ($passwordType === 'Auth-Type') {
+                        if (!insert_single_attribute($dbSocket, $subject, 'Auth-Type', ':=', 'Accept')) {
+                            continue;
+                        }
+                    } else {
+                        $hashed_value = hashPasswordAttribute($passwordType, $value);
+                        if (!insert_single_attribute($dbSocket, $subject, $passwordType, ':=', $hashed_value)) {
+                            continue;
+                        }
                     }
 
                     // adding user info
