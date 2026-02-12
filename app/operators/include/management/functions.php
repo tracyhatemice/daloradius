@@ -674,6 +674,8 @@ function geoip_lookup_city($ip) {
         $is_error = true;
     } else {
         // Try to parse as JSON to check for new error format
+        // Using strpos() to match error messages containing "Invalid filter path"
+        // (e.g., "Invalid filter path", "Invalid filter path specified", etc.)
         $json_data = json_decode($result, true);
         if (is_array($json_data) && isset($json_data['error']) && 
             strpos($json_data['error'], 'Invalid filter path') !== false) {
