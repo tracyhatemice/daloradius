@@ -668,7 +668,10 @@ function geoip_lookup_city($ip) {
     $result = trim($result, " \t\n\r\0\x0B\"'");
 
     // If city filter is not available, fallback to country filter
-    if ($result === "Invalid FILTER provided") {
+    // Check for JSON error format from geoip API
+    $json_data = json_decode($result, true);
+    if (is_array($json_data) && isset($json_data['error']) && 
+        strpos($json_data['error'], 'Invalid filter path') !== false) {
         $url = sprintf("http://geoip/lookup/country?ip=%s&filter=Country.Names.en", urlencode($ip));
         $result = @file_get_contents($url, false, $context);
 
