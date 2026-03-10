@@ -37,7 +37,7 @@ if (array_key_exists('username', $_GET) && isset($_GET['username']) &&
 
     // divContainer id must begin with a letter ([A-Za-z]) and may be followed by any number of letters,
     // digits ([0-9]), hyphens ("-"), underscores ("_").
-    if (!preg_match('/[A-Za-z][A-Za-z0-9_-]+/', $_GET['divContainer'])) {
+    if (!preg_match('/^[A-Za-z][A-Za-z0-9_-]+$/', $_GET['divContainer'])) {
         exit;
     }
 
@@ -137,7 +137,7 @@ if (array_key_exists('username', $_GET) && isset($_GET['username']) &&
                 // this left piece of the query is the same for all
                 $sql0 = sprintf("INSERT INTO %s (username, groupname, priority) VALUES ",
                                 $configValues['CONFIG_DB_TBL_RADUSERGROUP']);
-                $sql_piece_format = "('%s', '%s', 0)";
+                $sql_piece_format = "('%s', '%s', -1)";
                 $sql_pieces = array();
                 foreach ($to_disable as $username) {
                     $sql_pieces[] = sprintf($sql_piece_format, $username, $disabled_groupname);
