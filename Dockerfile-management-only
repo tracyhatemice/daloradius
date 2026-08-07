@@ -48,7 +48,7 @@ RUN mkdir -p /data \
     && chown www-data:www-data /tmp/daloradius.log \
     && chmod +x /var/www/daloradius/init.sh \
     # Remove MySQL wait loop (lines 61-74) - not needed for management-only
-    && sed -i '61,74d' /var/www/daloradius/init.sh
+    && sed -i '217,218d' /var/www/daloradius/init.sh
 
 EXPOSE 80
 
