@@ -2,7 +2,7 @@
 # Build: docker build -f Dockerfile-management-only -t daloradius-management .
 # Run:   docker run -p 8000:80 -d daloradius-management
 
-FROM tracyhatemice/php:8.5.2-apache
+FROM ghcr.io/tracyhatemice/dokuwiki-php-docker
 
 ### --- Install PEAR DB (required for daloRADIUS database layer) ---
 RUN pear install DB
@@ -53,7 +53,7 @@ RUN mkdir -p /data \
 EXPOSE 80
 
 LABEL Author="tracyhatemice"
-LABEL Base="tracyhatemice/php:8.5.2-apache"
+LABEL Base="ghcr.io/tracyhatemice/dokuwiki-php-docker"
 LABEL Description="daloRADIUS Management (Operators) interface"
 
 CMD ["/bin/bash", "/var/www/daloradius/init.sh"]
