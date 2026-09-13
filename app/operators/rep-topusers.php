@@ -147,10 +147,7 @@
     $_SESSION['reportQuery'] = (count($sql_WHERE) > 0) ? " WHERE " . implode(" AND ", $sql_WHERE) : "";
     $_SESSION['reportType'] = "TopUsers";
 
-    // per-NAS traffic multipliers (same formula used by the freeradius sqlcounter traffic counters)
-    $nas_usage_rate_tbl = (!empty($configValues['CONFIG_DB_TBL_NASUSAGERATE']))
-                        ? $configValues['CONFIG_DB_TBL_NASUSAGERATE'] : 'nas_usage_rate';
-
+    // charged traffic uses the same formula as the freeradius sqlcounter traffic counters
     $sql = "SELECT DISTINCT(ra.username) AS username, ra.FramedIPAddress, rn.shortname AS nasshortname,
                    ra.AcctStartTime, MAX(ra.AcctStopTime),
                    SUM(ra.AcctSessionTime) AS Time,
@@ -159,7 +156,7 @@
                    SUM(ra.AcctOutputOctets) AS Download, ra.AcctTerminateCause, ra.NASIPAddress
             FROM " . $configValues['CONFIG_DB_TBL_RADACCT'] . " AS ra
             LEFT JOIN " . $configValues['CONFIG_DB_TBL_RADNAS'] . " AS rn ON rn.nasname = ra.NASIPAddress
-            LEFT JOIN " . $nas_usage_rate_tbl . " AS nur ON nur.nasipaddress = ra.NASIPAddress";
+            LEFT JOIN " . $configValues['CONFIG_DB_TBL_NASUSAGERATE'] . " AS nur ON nur.nasipaddress = ra.NASIPAddress";
 
     if (count($sql_WHERE) > 0) {
         $sql .= " WHERE " . implode(" AND ", $sql_WHERE);

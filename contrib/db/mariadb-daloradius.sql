@@ -538,6 +538,7 @@ INSERT INTO `operators_acl_files` (`file`, `category`, `section`) VALUES
 ('graphs_logged_users', 'Graphs', 'General'),
 ('graphs_overall_download', 'Graphs', 'General'),
 ('graphs_overall_logins', 'Graphs', 'General'),
+('graphs_overall_traffic', 'Graphs', 'General'),
 ('graphs_overall_upload', 'Graphs', 'General');
 
 INSERT INTO `operators_acl_files` (`file`, `category`, `section`) VALUES

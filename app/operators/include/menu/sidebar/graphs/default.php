@@ -100,6 +100,9 @@ $descriptors1[] = array( 'type' => 'form', 'title' => t('button','UserDownloads'
 $descriptors1[] = array( 'type' => 'form', 'title' => t('button','UserUploads'), 'action' => 'graphs-overall_upload.php', 'method' => 'GET',
                          'icon' => 'graph-up', 'form_components' => $components, );
 
+$descriptors1[] = array( 'type' => 'form', 'title' => t('button','UserTraffic'), 'action' => 'graphs-overall_traffic.php', 'method' => 'GET',
+                         'icon' => 'graph-up', 'form_components' => $components, );
+
 $components = array();
 $components[] = $timeunit_select;
 
