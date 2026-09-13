@@ -15,8 +15,8 @@
  *
  *********************************************************************************************************
  *
- * Description:    this table extension lists the charged downloads of a user on a daily,
- *                 monthly and yearly basis, split by NAS usage ratio.
+ * Description:    this table extension lists the charged total traffic (upload + download)
+ *                 of a user on a daily, monthly and yearly basis, split by NAS usage ratio.
  *
  * Authors:        Liran Tal <liran@lirantal.com>
  *                 Filippo Lauria <filippo.lauria@iit.cnr.it>
@@ -25,13 +25,13 @@
  */
 
 // prevent this file to be directly accessed
-$extension_file = '/library/tables/overall_users_download.php';
+$extension_file = '/library/tables/overall_users_traffic.php';
 if (strpos($_SERVER['PHP_SELF'], $extension_file) !== false) {
     header("Location: ../../index.php");
     exit;
 }
 
-$traffic_category = "download";
+$traffic_category = "traffic";
 include(implode(DIRECTORY_SEPARATOR, [ __DIR__, 'overall_users_traffic_common.php' ]));
 
 ?>

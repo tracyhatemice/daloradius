@@ -761,6 +761,7 @@ $l['button']['BootLog'] = "Boot Log";
 $l['button']['UserLogins'] = "User Logins";
 $l['button']['UserDownloads'] = "User Downloads";
 $l['button']['UserUploads'] = "User Uploads";
+$l['button']['UserTraffic'] = "User Traffic";
 $l['button']['TotalLogins'] = "Total Logins";
 $l['button']['TotalTraffic'] = "Total Traffic";
 $l['button']['LoggedUsers'] = "Logged Users";
@@ -1237,6 +1238,7 @@ $l['Intro']['graphsloggedusers.php'] = "Logged Users";
 $l['Intro']['graphsoveralldownload.php'] = "User Downlads";
 $l['Intro']['graphsoveralllogins.php'] = "User Logins";
 $l['Intro']['graphsoverallupload.php'] = "User Uploads";
+$l['Intro']['graphsoveralltraffic.php'] = "User Traffic";
 
 $l['Intro']['rephistory.php'] = "Action History";
 $l['Intro']['replastconnect.php'] = "Last Connection Attempts";
@@ -1764,6 +1766,10 @@ $l['helpPage']['graphsoverallupload'] = <<<EOF
 <h2 class="fs-6">Overall Upload Statistics</h2>
 <p>Generates a graphical chart showing the amount of data uploaded by a specific user over a given period of time. The chart is accompanied by a table listing.</p>
 EOF;
+$l['helpPage']['graphsoveralltraffic'] = <<<EOF
+<h2 class="fs-6">Overall Traffic Statistics</h2>
+<p>Generates a graphical chart showing the total amount of data (upload + download) charged to a specific user over a given period of time, split by NAS usage ratio. The chart is accompanied by a table listing.</p>
+EOF;
 $l['helpPage']['graphsoveralllogins'] = <<<EOF
 <h2 class="fs-6">Overall Logins/Hits</h2>
 <p>Generates a graphical chart showing the usage of a specific user over a given period of time. The chart displays the number of logins (or 'hits' to the NAS) and is accompanied by a table listing.</p>
@@ -1779,7 +1785,7 @@ EOF;
 
 $l['helpPage']['graphmain'] = '<h1 class="fs-5">Graphs</h1>'
                             . $l['helpPage']['graphsoveralllogins'] . $l['helpPage']['graphsoveralldownload']
-                            . $l['helpPage']['graphsoverallupload'] . $l['helpPage']['graphsoveralllogins']
+                            . $l['helpPage']['graphsoverallupload'] . $l['helpPage']['graphsoveralltraffic']
                             . $l['helpPage']['graphsalltimetrafficcompare'] . $l['helpPage']['graphsloggedusers'];
 
 $l['helpPage']['rephistory'] = <<<EOF

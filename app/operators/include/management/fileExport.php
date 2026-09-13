@@ -275,17 +275,14 @@ switch ($reportType) {
             $outputHeader = "Username, IP Address, Start Time,Stop Time, Account Session Time, Account Input, Account Output, Total Bandwidth, Charged Traffic" . "\n";
             $outputContent = "";
 
-            // per-NAS traffic multipliers (same formula used by the freeradius sqlcounter traffic counters)
-            $nas_usage_rate_tbl = (!empty($configValues['CONFIG_DB_TBL_NASUSAGERATE']))
-                                ? $configValues['CONFIG_DB_TBL_NASUSAGERATE'] : 'nas_usage_rate';
-
+            // charged traffic uses the same formula as the freeradius sqlcounter traffic counters
             $sql = "SELECT distinct(ra.UserName), ra.FramedIPAddress, ra.AcctStartTime, ra.AcctStopTime,
                            sum(ra.AcctSessionTime) as Time, sum(ra.AcctInputOctets) as Upload,
                            sum(ra.AcctOutputOctets) as Download, ra.AcctTerminateCause, ra.NASIPAddress,
                            sum(ra.AcctInputOctets + ra.AcctOutputOctets) as Bandwidth,
                            sum((ra.AcctInputOctets + ra.AcctOutputOctets) * COALESCE(nur.multiplier, 1)) as ChargedTraffic
                     FROM " . $configValues['CONFIG_DB_TBL_RADACCT'] . " AS ra
-                    LEFT JOIN " . $nas_usage_rate_tbl . " AS nur ON nur.nasipaddress = ra.NASIPAddress
+                    LEFT JOIN " . $configValues['CONFIG_DB_TBL_NASUSAGERATE'] . " AS nur ON nur.nasipaddress = ra.NASIPAddress
                     $reportQuery Group BY ra.UserName";
 
             $res = $dbSocket->query($sql);
