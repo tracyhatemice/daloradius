@@ -272,23 +272,25 @@ switch ($reportType) {
             break;
 
 		case "TopUsers":
-            $outputHeader = "Username, IP Address, Start Time,Stop Time, Account Session Time, Account Input, Account Output, Total Bandwidth" . "\n";
+            $outputHeader = "Username, IP Address, Start Time,Stop Time, Account Session Time, Account Input, Account Output, Total Bandwidth, Charged Traffic" . "\n";
             $outputContent = "";
 
-            $sql = "SELECT distinct(radacct.UserName), ".$configValues['CONFIG_DB_TBL_RADACCT'].".FramedIPAddress, ".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".AcctStartTime, ".$configValues['CONFIG_DB_TBL_RADACCT'].
-                            ".AcctStopTime, sum(".$configValues['CONFIG_DB_TBL_RADACCT'].".AcctSessionTime) as Time, ".
-                            " sum(".$configValues['CONFIG_DB_TBL_RADACCT'].".AcctInputOctets) as Upload,sum(".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".AcctOutputOctets) as Download, ".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".AcctTerminateCause, ".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".NASIPAddress, sum(".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".AcctInputOctets+".
-                            $configValues['CONFIG_DB_TBL_RADACCT'].".AcctOutputOctets) as Bandwidth FROM ".
-                            $configValues['CONFIG_DB_TBL_RADACCT']." $reportQuery Group BY Username ASC";
+            // per-NAS traffic multipliers (same formula used by the freeradius sqlcounter traffic counters)
+            $nas_usage_rate_tbl = (!empty($configValues['CONFIG_DB_TBL_NASUSAGERATE']))
+                                ? $configValues['CONFIG_DB_TBL_NASUSAGERATE'] : 'nas_usage_rate';
+
+            $sql = "SELECT distinct(ra.UserName), ra.FramedIPAddress, ra.AcctStartTime, ra.AcctStopTime,
+                           sum(ra.AcctSessionTime) as Time, sum(ra.AcctInputOctets) as Upload,
+                           sum(ra.AcctOutputOctets) as Download, ra.AcctTerminateCause, ra.NASIPAddress,
+                           sum(ra.AcctInputOctets + ra.AcctOutputOctets) as Bandwidth,
+                           sum((ra.AcctInputOctets + ra.AcctOutputOctets) * COALESCE(nur.multiplier, 1)) as ChargedTraffic
+                    FROM " . $configValues['CONFIG_DB_TBL_RADACCT'] . " AS ra
+                    LEFT JOIN " . $nas_usage_rate_tbl . " AS nur ON nur.nasipaddress = ra.NASIPAddress
+                    $reportQuery Group BY ra.UserName";
 
             $res = $dbSocket->query($sql);
             while ($row = $res->fetchRow()) {
-                $outputContent .= "$row[0],$row[1],$row[2],$row[3],$row[4],$row[5],$row[6],$row[9]\n";
+                $outputContent .= "$row[0],$row[1],$row[2],$row[3],$row[4],$row[5],$row[6],$row[9],$row[10]\n";
             }
 
             $output = $outputHeader . $outputContent;

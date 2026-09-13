@@ -75,6 +75,7 @@
                     'acctstarttime' => t('all','StartTime'),
                     'acctstoptime' => t('all','StopTime'),
                     'Time' => t('all','TotalTime'),
+                    'ChargedTraffic' => t('all','ChargedTraffic'),
                     'Upload' => t('all','Upload'),
                     'Download' => t('all','Download'),
                     'acctterminatecause' => t('all','Termination'),
@@ -115,28 +116,28 @@
 
     // creating $sql_WHERE for SQL query
     $sql_WHERE = array();
-    $sql_WHERE[] = "AcctStopTime > '0000-00-00 00:00:01'";
+    $sql_WHERE[] = "ra.AcctStopTime > '0000-00-00 00:00:01'";
     if (!empty($startdate)) {
         $partial_query_params[] = sprintf("startdate=%s", urlencode(htmlspecialchars($startdate, ENT_QUOTES, 'UTF-8')));
-        $sql_WHERE[] = sprintf("AcctStartTime >= '%s'", $dbSocket->escapeSimple($startdate));
+        $sql_WHERE[] = sprintf("ra.AcctStartTime >= '%s'", $dbSocket->escapeSimple($startdate));
     }
 
     if (!empty($enddate)) {
         $partial_query_params[] = sprintf("enddate=%s", urlencode(htmlspecialchars($enddate, ENT_QUOTES, 'UTF-8')));
         // inclusive end date: match the whole $enddate day
-        $sql_WHERE[] = sprintf("AcctStartTime < ('%s' + INTERVAL 1 DAY)", $dbSocket->escapeSimple($enddate));
+        $sql_WHERE[] = sprintf("ra.AcctStartTime < ('%s' + INTERVAL 1 DAY)", $dbSocket->escapeSimple($enddate));
     }
 
     if (!empty($username)) {
         $partial_query_params[] = sprintf("username=%s", urlencode($username_enc));
-        $sql_WHERE[] = sprintf("username LIKE '%%%s%%'", $dbSocket->escapeSimple($username));
+        $sql_WHERE[] = sprintf("ra.username LIKE '%%%s%%'", $dbSocket->escapeSimple($username));
     }
 
     if (count($nasipaddresses) > 0) {
         $partial_query_params[] = sprintf("nasipaddress=%s", $nasipaddress_enc);
         $nasip_conditions = array();
         foreach ($nasipaddresses as $ip) {
-            $nasip_conditions[] = sprintf("NASIPAddress LIKE '%%%s%%'", $dbSocket->escapeSimple($ip));
+            $nasip_conditions[] = sprintf("ra.NASIPAddress LIKE '%%%s%%'", $dbSocket->escapeSimple($ip));
         }
         $sql_WHERE[] = "(" . implode(" OR ", $nasip_conditions) . ")";
     }
@@ -146,18 +147,25 @@
     $_SESSION['reportQuery'] = (count($sql_WHERE) > 0) ? " WHERE " . implode(" AND ", $sql_WHERE) : "";
     $_SESSION['reportType'] = "TopUsers";
 
+    // per-NAS traffic multipliers (same formula used by the freeradius sqlcounter traffic counters)
+    $nas_usage_rate_tbl = (!empty($configValues['CONFIG_DB_TBL_NASUSAGERATE']))
+                        ? $configValues['CONFIG_DB_TBL_NASUSAGERATE'] : 'nas_usage_rate';
+
     $sql = "SELECT DISTINCT(ra.username) AS username, ra.FramedIPAddress, rn.shortname AS nasshortname,
                    ra.AcctStartTime, MAX(ra.AcctStopTime),
-                   SUM(ra.AcctSessionTime) AS Time, SUM(ra.AcctInputOctets) AS Upload,
+                   SUM(ra.AcctSessionTime) AS Time,
+                   SUM((ra.AcctInputOctets + ra.AcctOutputOctets) * COALESCE(nur.multiplier, 1)) AS ChargedTraffic,
+                   SUM(ra.AcctInputOctets) AS Upload,
                    SUM(ra.AcctOutputOctets) AS Download, ra.AcctTerminateCause, ra.NASIPAddress
             FROM " . $configValues['CONFIG_DB_TBL_RADACCT'] . " AS ra
-            LEFT JOIN " . $configValues['CONFIG_DB_TBL_RADNAS'] . " AS rn ON rn.nasname = ra.NASIPAddress";
+            LEFT JOIN " . $configValues['CONFIG_DB_TBL_RADNAS'] . " AS rn ON rn.nasname = ra.NASIPAddress
+            LEFT JOIN " . $nas_usage_rate_tbl . " AS nur ON nur.nasipaddress = ra.NASIPAddress";
 
     if (count($sql_WHERE) > 0) {
         $sql .= " WHERE " . implode(" AND ", $sql_WHERE);
     }
 
-    $sql .= " GROUP BY username";
+    $sql .= " GROUP BY ra.username";
 
 
     $logDebugSQL = "$sql;\n";
@@ -226,15 +234,16 @@
 
 
             list( $username, $framedIPAddress, $nasShortname, $acctStartTime, $maxAcctStopTime, $time,
-                  $upload, $download, $acctTerminateCause, $nasIPAddress ) = $row;
+                  $chargedTraffic, $upload, $download, $acctTerminateCause, $nasIPAddress ) = $row;
 
             $time = time2str($time);
+            $chargedTraffic = toxbyte(round($chargedTraffic));
             $upload = toxbyte($upload);
             $download = toxbyte($download);
             $nas_tooltip = get_nas_tooltip_str($nasShortname, $nasIPAddress);
 
             $table_row = array( $username, $framedIPAddress, $nas_tooltip, $acctStartTime, $maxAcctStopTime, $time,
-                                $upload, $download, $acctTerminateCause );
+                                $chargedTraffic, $upload, $download, $acctTerminateCause );
 
             // print table row
             print_table_row($table_row);
