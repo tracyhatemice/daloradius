@@ -200,6 +200,7 @@ $l['all']['StartTime'] = "Start Time";
 $l['all']['StopTime'] = "Stop Time";
 $l['all']['TotalTime'] = "Total Time";
 $l['all']['TotalTraffic'] = "Total Traffic";
+$l['all']['ChargedTraffic'] = "Charged Traffic";
 $l['all']['Bytes'] = "Bytes";
 $l['all']['Upload'] = "Upload";
 $l['all']['Download'] = "Download";
