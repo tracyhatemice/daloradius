@@ -41,6 +41,7 @@
                     "name" => t('all','HotSpot'),
                     "username" => t('all','Username'),
                     "framedipaddress" => t('all','IPAddress'),
+                    "connectinfo_start" => t('all','ConnectInfo'),
                     "acctstarttime" => t('all','StartTime'),
                     "acctstoptime" => t('all','StopTime'),
                     "acctsessiontime" => t('all','TotalTime'),
@@ -101,7 +102,7 @@
     $_SESSION['reportQuery'] = (!empty($ipaddress)) ? $sql_WHERE : "";
 
     $sql = "SELECT ra.RadAcctId, dh.name AS hotspot, ra.UserName, ra.FramedIPAddress AS FramedIPAddress,
-                   ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
+                   ra.ConnectInfo_start, ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
                    CASE WHEN ra.AcctTerminateCause = '0' THEN 'Unknown' ELSE ra.AcctTerminateCause END AS AcctTerminateCause, ra.NASIPAddress
               FROM %s AS ra LEFT JOIN %s AS dh ON ra.calledstationid=dh.mac";
 
@@ -169,7 +170,7 @@
                 $row[$i] = htmlspecialchars($row[$i], ENT_QUOTES, 'UTF-8');
             }
             
-            list($radAcctId, $hotspot, $username, $framedIPAddress, $acctStartTime, $acctStopTime,
+            list($radAcctId, $hotspot, $username, $framedIPAddress, $connectInfoStart, $acctStartTime, $acctStopTime,
                  $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $nasIPAddress) = $row;
                 
             $acctSessionTime = time2str($acctSessionTime, true);
@@ -248,8 +249,11 @@
                 $tooltip4 = (!empty($nasIPAddress)) ? $nasIPAddress : "(n/a)";
             }
 
+            $connectInfoDisplay = (!empty($connectInfoStart)) ? $connectInfoStart : "(n/a)";
+
+
             // define table row
-            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $acctStartTime, $acctStopTime,
+            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $connectInfoDisplay, $acctStartTime, $acctStopTime,
                                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $tooltip4);
 
             // print table row
