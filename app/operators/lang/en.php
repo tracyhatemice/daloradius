@@ -209,6 +209,7 @@ $l['all']['Termination'] = "Termination";
 $l['all']['NASIPAddress'] = "NAS IP Address";
 $l['all']['CallingStationId'] = "Calling Station ID";
 $l['all']['Location'] = "Location";
+$l['all']['ConnectInfo'] = "Connect Info";
 $l['all']['NASShortName'] = "NAS Short Name";
 $l['all']['Action'] = "Action";
 $l['all']['UniqueUsers'] = "Unique Users";
