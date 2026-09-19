@@ -43,6 +43,7 @@
                     "framedipaddress" => t('all','IPAddress'),
                     "callingstationid" => t('all','CallingStationId'),
                     t('all','Location'),
+                    "connectinfo_start" => t('all','ConnectInfo'),
                     "acctstarttime" => t('all','StartTime'),
                     "acctstoptime" => t('all','StopTime'),
                     "acctsessiontime" => t('all','TotalTime'),
@@ -104,7 +105,7 @@
         
         $sql = sprintf(
             "SELECT ra.RadAcctId, dhs.name AS hotspot, ra.username, ra.FramedIPAddress, ra.CallingStationId,
-                    ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
+                    ra.ConnectInfo_start, ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, ra.AcctOutputOctets,
                     CASE WHEN ra.AcctTerminateCause = '0' THEN 'Unknown' ELSE ra.AcctTerminateCause END AS AcctTerminateCause,
                     ra.NASIPAddress
              FROM %s AS ra
@@ -158,7 +159,7 @@
                 $row[$i] = htmlspecialchars($row[$i], ENT_QUOTES, 'UTF-8');
             }
             
-            list($radAcctId, $hotspot, $username, $framedIPAddress, $callingStationId, $acctStartTime, $acctStopTime,
+            list($radAcctId, $hotspot, $username, $framedIPAddress, $callingStationId, $connectInfoStart, $acctStartTime, $acctStopTime,
                  $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $nasIPAddress) = $row;
                 
             $acctSessionTime = time2str($acctSessionTime, true);
@@ -244,8 +245,11 @@
             $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
             $locationDisplay = (!empty($location)) ? $location : "(n/a)";
 
+            $connectInfoDisplay = (!empty($connectInfoStart)) ? $connectInfoStart : "(n/a)";
+
             // define table row
-            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $callingStationIdDisplay, $locationDisplay, $acctStartTime, $acctStopTime,
+            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $callingStationIdDisplay, $locationDisplay, $connectInfoDisplay,
+                                $acctStartTime, $acctStopTime,
                                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $tooltip4);
 
             // print table row

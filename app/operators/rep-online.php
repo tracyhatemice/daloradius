@@ -48,6 +48,7 @@
                    'framedipaddress' => t('all','Framed IP Address'),
                    'calledstationid' => t('all','Calling Station ID'),
                    t('all','Location'),
+                   'connectinfo_start' => t('all','ConnectInfo'),
                    'nasshortname' => t('all','Nas'),
                    'hotspot' => t('all','HotSpot'),
                    'acctstarttime' => t('all','StartTime'),
@@ -145,7 +146,8 @@
                           rn.shortname AS nasshortname,
                           rn.id AS nasid,
                           ui.firstname AS firstname,
-                          ui.lastname AS lastname ";
+                          ui.lastname AS lastname,
+                          ra.connectinfo_start AS connectinfo_start ";
 
     $sql_FROM = sprintf(" FROM %s AS ra LEFT JOIN %s AS hs ON hs.mac=ra.calledstationid
                                         LEFT JOIN %s AS rn ON rn.nasname=ra.nasipaddress
@@ -239,7 +241,8 @@
             list(
                     $this_username, $this_framedipaddress, $this_callingstationid, $this_starttime, $this_sessiontime,
                     $this_nasipaddress, $this_calledstationid, $this_sessionid, $this_upload, $this_download,
-                    $this_hotspot, $this_nasshortname, $this_nasid, $this_firstname, $this_lastname
+                    $this_hotspot, $this_nasshortname, $this_nasid, $this_firstname, $this_lastname,
+                    $this_connectinfo
                 ) = $row;
 
             $this_sessiontime = time2str($this_sessiontime);
@@ -298,10 +301,12 @@
             $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
             $locationDisplay = (!empty($location)) ? $location : "(n/a)";
 
+            $connectInfoDisplay = (!empty($this_connectinfo)) ? $this_connectinfo : "(n/a)";
+
             // define table row
             $table_row = array(
                                 $checkbox, $tooltip2, $this_name, $this_framedipaddress, $this_callingstationid,
-                                $locationDisplay, $nas_tooltip, $this_hotspot, $this_starttime, $this_sessiontime, $tooltip1
+                                $locationDisplay, $connectInfoDisplay, $nas_tooltip, $this_hotspot, $this_starttime, $this_sessiontime, $tooltip1
                               );
 
             // print table row
