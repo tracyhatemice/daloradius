@@ -1,0 +1,163 @@
+name: Build daloRADIUS management image
+
+on:
+  schedule:
+    # Daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Build & push without cache, even if nothing changed'
+        type: boolean
+        default: false
+  push:
+    branches: [master]
+    paths:
+      - 'Dockerfile-management-only'
+      - 'init.sh'
+      - 'app/operators/**'
+      - 'app/common/**'
+      - '.github/workflows/build-management-image.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/daloradius-management
+  DOCKERFILE: Dockerfile-management-only
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve latest base image digest
+        id: base
+        run: |
+          set -euo pipefail
+          # Take the base image from the Dockerfile's FROM line so the two never drift.
+          BASE_IMAGE=$(awk 'toupper($1) == "FROM" { print $2; exit }' "${DOCKERFILE}")
+          [ -n "${BASE_IMAGE}" ] || { echo "No FROM line in ${DOCKERFILE}"; exit 1; }
+          case "${BASE_IMAGE##*/}" in *:*|*@*) ;; *) BASE_IMAGE="${BASE_IMAGE}:latest" ;; esac
+          BASE_DIGEST=$(docker buildx imagetools inspect "${BASE_IMAGE}" \
+            --format '{{json .Manifest}}' | jq -r '.digest')
+          echo "Base ${BASE_IMAGE} digest: ${BASE_DIGEST}"
+          echo "image=${BASE_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "digest=${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether build is needed
+        id: decide
+        env:
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          NEW_BASE: ${{ steps.base.outputs.digest }}
+          EVENT: ${{ github.event_name }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          decide() {
+            echo "skip=$1" >> "$GITHUB_OUTPUT"
+            echo "no_cache=$2" >> "$GITHUB_OUTPUT"
+          }
+          if [ "${FORCE}" = "true" ]; then
+            echo "Forced: build without cache."
+            decide false true
+            exit 0
+          fi
+          if [ "${EVENT}" != "schedule" ]; then
+            echo "Trigger=${EVENT}: build."
+            decide false false
+            exit 0
+          fi
+          # Schedule trigger: skip if previous build used the same base digest
+          # and its Debian packages are still current.
+          if ! docker pull "${IMAGE_REF}" >/dev/null 2>&1; then
+            echo "No previous :latest in registry; building."
+            decide false false
+            exit 0
+          fi
+          PREV=$(docker inspect "${IMAGE_REF}" \
+            --format '{{ index .Config.Labels "org.opencontainers.image.base.digest" }}' \
+            2>/dev/null || true)
+          echo "Previous base digest: ${PREV:-<none>}"
+          echo "Current  base digest: ${NEW_BASE}"
+          if [ -z "${PREV}" ] || [ "${PREV}" != "${NEW_BASE}" ]; then
+            echo "Base changed; building."
+            decide false false
+            exit 0
+          fi
+          # Debian security fixes (Apache, PHP, ...) often land before a new base image,
+          # and only reach this image through a rebuild that skips the cached apt layer.
+          UPGRADES=$(docker run --rm --entrypoint sh "${IMAGE_REF}" -c \
+            'apt-get update -qq >/dev/null && apt-get -s upgrade | awk "/^Inst/ { n++ } END { print n + 0 }"')
+          echo "Pending package updates: ${UPGRADES}"
+          if [ "${UPGRADES}" -gt 0 ]; then
+            echo "Package updates available; building without cache."
+            decide false true
+          else
+            echo "Base and packages unchanged; skipping rebuild."
+            decide true false
+          fi
+
+      - name: Resolve daloRADIUS version
+        if: steps.decide.outputs.skip != 'true'
+        id: ver
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n "s/.*\['DALORADIUS_VERSION'\] = '\([^']*\)'.*/\1/p" app/common/includes/version.php)
+          [ -n "${VERSION}" ] || { echo "Could not determine version from app/common/includes/version.php"; exit 1; }
+          DATE=$(date -u +%Y%m%d)
+          echo "daloRADIUS version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        if: steps.decide.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          pull: true
+          no-cache: ${{ steps.decide.outputs.no_cache == 'true' }}
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.ver.outputs.version }}
+            org.opencontainers.image.created=${{ steps.ver.outputs.date }}
+            org.opencontainers.image.base.name=${{ steps.base.outputs.image }}
+            org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
+          cache-from: type=gha,scope=daloradius-management
+          cache-to: type=gha,mode=max,scope=daloradius-management
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.decide.outputs.skip }}" = "true" ]; then
+            {
+              echo "### No rebuild"
+              echo "Base image \`${{ steps.base.outputs.image }}\` digest unchanged (\`${{ steps.base.outputs.digest }}\`) and no pending package updates."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Built & pushed"
+              echo ""
+              echo "- \`${REGISTRY}/${IMAGE_NAME}:latest\`"
+              echo "- \`${REGISTRY}/${IMAGE_NAME}:${{ steps.ver.outputs.version }}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

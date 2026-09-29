@@ -2,10 +2,121 @@
 # Build: docker build -f Dockerfile-management-only -t daloradius-management .
 # Run:   docker run -p 8000:80 -d daloradius-management
 
-FROM ghcr.io/tracyhatemice/dokuwiki-php-docker
+FROM debian:13-slim
 
-### --- Install PEAR DB (required for daloRADIUS database layer) ---
-RUN pear install DB
+ENV DEBIAN_FRONTEND=noninteractive
+
+### --- Install Apache, PHP and the MariaDB client ---
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        apache2 \
+        libapache2-mod-php \
+        # PEAR DB, the daloRADIUS database layer (mysqli driver)
+        php-db \
+        php-mysql \
+        # Graphs
+        php-gd \
+        # dompdf (PDF export) and HTMLPurifier
+        php-mbstring \
+        php-xml \
+        php-curl \
+        # SMTP over TLS
+        ca-certificates \
+        # mysql client used by init.sh for schema checks and migrations
+        mariadb-client-core \
+    && rm -rf /var/lib/apt/lists/* \
+    # Enable Apache modules
+    && a2enmod headers \
+    # Disable unnecessary Apache modules and the default site
+    && a2dismod -f autoindex status \
+    && a2disconf other-vhosts-access-log \
+    && a2dissite 000-default \
+    && rm -rf /var/www/html \
+    # Log to the container output
+    && ln -sfT /dev/stderr /var/log/apache2/error.log \
+    && ln -sfT /dev/stdout /var/log/apache2/access.log
+
+### --- Harden Apache Configuration ---
+ARG APACHE_SECURITY_CONF=/etc/apache2/conf-available/security.conf
+RUN sed -i \
+        -e 's/^ServerTokens .*/ServerTokens Prod/' \
+        -e 's/^ServerSignature .*/ServerSignature Off/' \
+        "${APACHE_SECURITY_CONF}" \
+    && grep -qx 'ServerTokens Prod' "${APACHE_SECURITY_CONF}" \
+    && grep -qx 'ServerSignature Off' "${APACHE_SECURITY_CONF}" \
+    && grep -qx 'TraceEnable Off' "${APACHE_SECURITY_CONF}" \
+    && echo 'ServerName localhost' > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
+
+### --- Apache Worker Limits ---
+# mod_php handles one request per prefork worker, each allowed up to memory_limit.
+# Default sized for a 2 vCPU / 2GB host; override at runtime (ServerLimit follows it).
+ENV APACHE_MAX_REQUEST_WORKERS=20
+RUN printf '<IfModule mpm_prefork_module>\n\
+    ServerLimit             ${APACHE_MAX_REQUEST_WORKERS}\n\
+    StartServers            5\n\
+    MinSpareServers         5\n\
+    MaxSpareServers         10\n\
+    MaxRequestWorkers       ${APACHE_MAX_REQUEST_WORKERS}\n\
+    MaxConnectionsPerChild  1000\n\
+</IfModule>\n' > /etc/apache2/mods-available/mpm_prefork.conf \
+    # Idle keep-alive connections (e.g. a reverse proxy's connection pool) would each pin
+    # a prefork worker; close after every response instead
+    && sed -i 's/^KeepAlive On$/KeepAlive Off/' /etc/apache2/apache2.conf \
+    && grep -qx 'KeepAlive Off' /etc/apache2/apache2.conf
+
+### --- Security Headers ---
+RUN printf '<IfModule mod_headers.c>\n\
+    Header always set X-Content-Type-Options "nosniff"\n\
+    Header always set X-Frame-Options "SAMEORIGIN"\n\
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"\n\
+    Header always unset X-Powered-By\n\
+</IfModule>\n' > /etc/apache2/conf-available/security-headers.conf \
+    && a2enconf security-headers
+
+### --- Reverse Proxy ---
+# Behind a reverse proxy (e.g. Traefik): use the client IP from X-Forwarded-For when the
+# request comes from a trusted proxy, and tell PHP the original request was HTTPS.
+# Reverse proxy addresses allowed to set X-Forwarded-For (space-separated IPs/CIDRs);
+# defaults to all private ranges, narrow it to your proxy's Docker network if you like
+ENV APACHE_TRUSTED_PROXIES="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7"
+RUN printf 'RemoteIPHeader X-Forwarded-For\n\
+RemoteIPInternalProxy ${APACHE_TRUSTED_PROXIES}\n\
+SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on\n' > /etc/apache2/conf-available/reverse-proxy.conf \
+    && a2enmod remoteip \
+    && a2enconf reverse-proxy
+
+### --- PHP Settings ---
+RUN PHP_CONF_DIR=$(echo /etc/php/*/apache2/conf.d) \
+    && test -d "${PHP_CONF_DIR}" \
+    && printf '[PHP]\n\
+expose_php=Off\n\
+max_execution_time=30\n\
+max_input_time=60\n\
+memory_limit=128M\n\
+post_max_size=16M\n\
+upload_max_filesize=8M\n\
+max_file_uploads=5\n\
+session.use_only_cookies=1\n\
+session.cookie_httponly=1\n\
+session.cookie_secure=1\n\
+session.use_strict_mode=1\n\
+session.use_trans_sid=0\n\
+session.cookie_samesite=Strict\n\
+display_errors=Off\n\
+display_startup_errors=Off\n\
+log_errors=On\n\
+allow_url_include=Off\n\
+\n\
+[opcache]\n\
+opcache.enable=1\n\
+opcache.memory_consumption=128\n\
+opcache.interned_strings_buffer=16\n\
+opcache.max_accelerated_files=10000\n\
+opcache.validate_timestamps=0\n\
+; The operators UI rewrites daloradius.conf.php at runtime; never cache it\n\
+opcache.blacklist_filename=/etc/php/opcache-blacklist.txt\n' > "${PHP_CONF_DIR}/90-daloradius.ini" \
+    && echo '/var/www/daloradius/app/common/includes/daloradius.conf.php' > /etc/php/opcache-blacklist.txt
 
 ### --- Configure Apache VirtualHost for operators only ---
 RUN printf '<VirtualHost *:80>\n\
@@ -30,10 +141,9 @@ RUN printf '<VirtualHost *:80>\n\
         Require all granted\n\
     </Directory>\n\
 \n\
-    ErrorLog ${APACHE_LOG_DIR}/daloradius-error.log\n\
-    CustomLog ${APACHE_LOG_DIR}/daloradius-access.log combined\n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>\n' > /etc/apache2/sites-available/operators.conf \
-    && a2dissite 000-default.conf \
     && a2ensite operators.conf
 
 ### --- Copy application files ---
@@ -42,18 +152,17 @@ COPY app/common /var/www/daloradius/app/common
 COPY init.sh /var/www/daloradius/init.sh
 
 ### --- Set permissions and create directories ---
-RUN mkdir -p /data \
+# var/ holds the daloRADIUS log (CONFIG_LOG_FILE) and config backups
+RUN mkdir -p /data /var/www/daloradius/var/log /var/www/daloradius/var/backup \
+    && touch /var/www/daloradius/var/log/daloradius.log \
     && chown -R www-data:www-data /var/www/daloradius \
-    && touch /tmp/daloradius.log \
-    && chown www-data:www-data /tmp/daloradius.log \
     && chmod +x /var/www/daloradius/init.sh \
-    # Remove MySQL wait loop (lines 61-74) - not needed for management-only
-    && sed -i '217,218d' /var/www/daloradius/init.sh
+    # Remove the wait_for_mysql call - not needed for management-only
+    && sed -i '/^wait_for_mysql$/d' /var/www/daloradius/init.sh
 
 EXPOSE 80
 
 LABEL Author="tracyhatemice"
-LABEL Base="ghcr.io/tracyhatemice/dokuwiki-php-docker"
 LABEL Description="daloRADIUS Management (Operators) interface"
 
 CMD ["/bin/bash", "/var/www/daloradius/init.sh"]
