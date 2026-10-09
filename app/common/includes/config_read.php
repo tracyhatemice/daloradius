@@ -43,6 +43,11 @@ foreach ($configValues as $_configOption => $_configElem) {
     }
 }
 
+// per-NAS traffic multipliers table (used by the freeradius sqlcounter traffic counters)
+if (empty($configValues['CONFIG_DB_TBL_NASUSAGERATE'])) {
+    $configValues['CONFIG_DB_TBL_NASUSAGERATE'] = 'nas_usage_rate';
+}
+
 // inject useful paths in the $configValues
 $configValues['COMMON_INCLUDES'] = __DIR__;
 $configValues['COMMON_ROOT'] = realpath(implode(DIRECTORY_SEPARATOR, [ $configValues['COMMON_INCLUDES'], '..' ]));

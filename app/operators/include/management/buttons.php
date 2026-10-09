@@ -57,6 +57,8 @@ if (!empty($username_enc)) {
                                     "type" => "button", "value" => 'Graphs - Downloads', "name" => "graphs-downloads-button" );
     $button_descriptors1[] = array( "onclick" => sprintf("self.location='graphs-overall_upload.php?type=monthly&username=%s'", $username_enc),
                                     "type" => "button", "value" => 'Graphs - Uploads', "name" => "graphs-uploads-button" );
+    $button_descriptors1[] = array( "onclick" => sprintf("self.location='graphs-overall_traffic.php?type=monthly&username=%s'", $username_enc),
+                                    "type" => "button", "value" => 'Graphs - Traffic', "name" => "graphs-traffic-button" );
                                     
 }
 

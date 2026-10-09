@@ -251,3 +251,15 @@ CREATE TABLE IF NOT EXISTS radhuntgroup (
     PRIMARY KEY  (id),
     KEY nasipaddress (nasipaddress)
 );
+
+#
+# Table structure for table 'nas_usage_rate'
+# per-NAS traffic multiplier used by the sqlcounter traffic counters and by
+# daloRADIUS to compute "charged" traffic: octets * multiplier (1 when absent)
+#
+
+CREATE TABLE IF NOT EXISTS nas_usage_rate (
+    nasipaddress varchar(45) NOT NULL,
+    multiplier decimal(10,4) NOT NULL,
+    PRIMARY KEY (nasipaddress)
+);
