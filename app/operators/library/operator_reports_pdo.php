@@ -82,7 +82,8 @@ function dalo_operator_query($source, $filters, $config) {
         return array("SELECT ra.username AS username,ra.framedipaddress AS framedipaddress,ra.callingstationid AS callingstationid,
            ra.acctstarttime AS starttime,ra.acctsessiontime AS sessiontime,ra.nasipaddress AS nasipaddress,
            ra.calledstationid AS calledstationid,ra.acctsessionid AS sessionid,ra.acctinputoctets AS upload,
-           ra.acctoutputoctets AS download,hs.name AS hotspot,rn.shortname AS nasshortname,rn.id AS nasid,ui.firstname,ui.lastname
+           ra.acctoutputoctets AS download,hs.name AS hotspot,rn.shortname AS nasshortname,rn.id AS nasid,ui.firstname,ui.lastname,
+           ra.connectinfo_start AS connectinfo_start
            FROM $ra AS ra LEFT JOIN $hs AS hs ON hs.mac=ra.calledstationid LEFT JOIN $rn AS rn ON rn.nasname=ra.nasipaddress
            LEFT JOIN $ui AS ui ON ra.username=ui.username $where",$bindings);
     }
@@ -127,7 +128,7 @@ function dalo_operator_rows(PDO $pdo,$sql,$bindings,$source,$order,$direction,$o
       'rep-batch-list'=>array('id','creationdate','creationby'),
       'rep-batch-details'=>array('username','status','acctstarttime'),
       'rep-lastconnect'=>array('username','user','fullname','pass','reply','authdate','date'),
-      'rep-online'=>array('username','framedipaddress','calledstationid','nasshortname','hotspot','acctstarttime','acctsessiontime'),
+      'rep-online'=>array('username','framedipaddress','calledstationid','nasshortname','hotspot','acctstarttime','acctsessiontime','connectinfo_start'),
       'rep-topusers'=>array('username','framedipaddress','nasshortname','acctstarttime','acctstoptime','Time','Upload','Download','acctterminatecause'),
       'rep-newusers'=>array('month','users'),'rep-history'=>array('section','item','creationdate','creationby','updatedate','updateby'),
       'rep-hb-dashboard'=>array('id'));

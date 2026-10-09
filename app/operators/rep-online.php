@@ -40,6 +40,8 @@
     include_once implode(DIRECTORY_SEPARATOR, [ $configValues['OPERATORS_LANG'], 'main.php' ]);
     include implode(DIRECTORY_SEPARATOR, [ $configValues['COMMON_INCLUDES'], 'validation.php' ]);
     include implode(DIRECTORY_SEPARATOR, [ $configValues['COMMON_INCLUDES'], 'layout.php' ]);
+    // extract_ip_from_calling_station_id() and geoip_lookup_city() for the Location column
+    include implode(DIRECTORY_SEPARATOR, [ $configValues['OPERATORS_INCLUDE_MANAGEMENT'], 'functions.php' ]);
 
     unset($_SESSION['reportExport']);
 
@@ -58,6 +60,8 @@
                    t('all','Name'),
                    'framedipaddress' => t('all','Framed IP Address'),
                    'calledstationid' => t('all','Calling Station ID'),
+                   t('all','Location'),
+                   'connectinfo_start' => t('all','ConnectInfo'),
                    'nasshortname' => t('all','Nas'),
                    'hotspot' => t('all','HotSpot'),
                    'acctstarttime' => t('all','StartTime'),
@@ -222,7 +226,8 @@
             list(
                     $this_username, $this_framedipaddress, $this_callingstationid, $this_starttime, $this_sessiontime,
                     $this_nasipaddress, $this_calledstationid, $this_sessionid, $this_upload, $this_download,
-                    $this_hotspot, $this_nasshortname, $this_nasid, $this_firstname, $this_lastname
+                    $this_hotspot, $this_nasshortname, $this_nasid, $this_firstname, $this_lastname,
+                    $this_connectinfo
                 ) = $row;
 
             $this_sessiontime = time2str($this_sessiontime);
@@ -276,10 +281,18 @@
                         'value' => sprintf("%s||%s", $this_username, $this_starttime));
             $checkbox = get_checkbox_str($d);
 
+            // Lookup location based on calling station ID
+            $locationIp = extract_ip_from_calling_station_id($rawIdentity[2]);
+            $location = (!empty($locationIp)) ? geoip_lookup_city($locationIp) : "";
+            $locationDisplay = (!empty($location)) ? htmlspecialchars($location, ENT_QUOTES, 'UTF-8') : "(n/a)";
+
+            $connectInfoDisplay = ($this_connectinfo !== '') ? $this_connectinfo : "(n/a)";
+
             // define table row
             $table_row = array(
                                 $checkbox, $tooltip2, $this_name, $this_framedipaddress, $this_callingstationid,
-                                $nas_tooltip, $this_hotspot, $this_starttime, $this_sessiontime, $tooltip1
+                                $locationDisplay, $connectInfoDisplay, $nas_tooltip, $this_hotspot,
+                                $this_starttime, $this_sessiontime, $tooltip1
                               );
 
             // print table row
