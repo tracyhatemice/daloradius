@@ -45,7 +45,7 @@ try {
         case 'accountingGeneric':
             $output = "Id,NAS/Hotspot,UserName,IP Address,Start Time,Stop Time,"
                     . "Total Session Time (seconds),Total Upload (bytes),Total Downloads (bytes),"
-                    . "Termination Cause,NAS IP Address\n";
+                    . "Termination Cause,NAS IP Address,Calling Station ID,Connect Info\n";
             while ($row = $res->fetch(PDO::FETCH_NUM)) {
                 $output .= implode(',', $row) . "\n";
             }

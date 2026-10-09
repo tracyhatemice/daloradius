@@ -95,7 +95,8 @@ function dalo_accounting_rows(PDO $pdo, $sql, $bindings, $source, $orderBy, $ord
         'acctstarttime' => 'ra.AcctStartTime', 'acctstoptime' => 'ra.AcctStopTime',
         'acctsessiontime' => 'ra.AcctSessionTime', 'acctinputoctets' => 'ra.AcctInputOctets',
         'acctoutputoctets' => 'ra.AcctOutputOctets', 'acctterminatecause' => 'AcctTerminateCause',
-        'nasipaddress' => 'ra.NASIPAddress');
+        'nasipaddress' => 'ra.NASIPAddress', 'callingstationid' => 'ra.CallingStationId',
+        'connectinfo_start' => 'ra.ConnectInfo_start');
     if ($source === 'acct-active') {
         $columns = array_combine(array('username','attribute','maxtimeexpiration','usedtime'),
                                  array('username','attribute','maxtimeexpiration','usedtime'));

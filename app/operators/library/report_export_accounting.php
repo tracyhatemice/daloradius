@@ -175,9 +175,12 @@ function dalo_export_accounting_generic_query($source, $filters, $configValues) 
         }
     }
 
+    // CallingStationId and ConnectInfo_start are appended last so that positional
+    // consumers of the historical column order keep working unchanged.
     $sql = 'SELECT ra.RadAcctId, hs.name AS hotspot, ra.UserName, ra.FramedIPAddress, '
          . 'ra.AcctStartTime, ra.AcctStopTime, ra.AcctSessionTime, ra.AcctInputOctets, '
-         . 'ra.AcctOutputOctets, ra.AcctTerminateCause, ra.NASIPAddress '
+         . 'ra.AcctOutputOctets, ra.AcctTerminateCause, ra.NASIPAddress, '
+         . 'ra.CallingStationId, ra.ConnectInfo_start '
          . 'FROM ' . $radacct . ' AS ra '
          . 'LEFT JOIN ' . $hotspots . ' AS hs ON ra.calledstationid = hs.mac';
     if (count($where) > 0) {

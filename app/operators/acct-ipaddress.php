@@ -51,6 +51,7 @@
                     "name" => t('all','HotSpot'),
                     "username" => t('all','Username'),
                     "framedipaddress" => t('all','IPAddress'),
+                    "connectinfo_start" => t('all','ConnectInfo'),
                     "acctstarttime" => t('all','StartTime'),
                     "acctstoptime" => t('all','StopTime'),
                     "acctsessiontime" => t('all','TotalTime'),
@@ -183,7 +184,8 @@
             }
             
             list($radAcctId, $hotspot, $username, $framedIPAddress, $acctStartTime, $acctStopTime,
-                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $nasIPAddress) = $row;
+                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $nasIPAddress,
+                 $callingStationId, $connectInfoStart) = $row;
                 
             $acctSessionTime = time2str($acctSessionTime, true);
             $acctInputOctets = toxbyte($acctInputOctets);
@@ -261,8 +263,13 @@
                 $tooltip4 = (!empty($nasIPAddress)) ? $nasIPAddress : "(n/a)";
             }
 
+            $connectInfoDisplay = ($connectInfoStart !== '') ? $connectInfoStart : "(n/a)";
+
+
             // define table row
-            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $acctStartTime, $acctStopTime,
+
+            $table_row = array( $radAcctId, $tooltip1, $tooltip2, $tooltip3, $connectInfoDisplay,
+                                $acctStartTime, $acctStopTime,
                                 $acctSessionTime, $acctInputOctets, $acctOutputOctets, $acctTerminateCause, $tooltip4);
 
             // print table row
