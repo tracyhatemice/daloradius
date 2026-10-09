@@ -54,6 +54,16 @@
     $username = dalo_accounting_scalar($_GET, 'username');
     $username_enc = ($username !== '') ? htmlspecialchars($username, ENT_QUOTES, 'UTF-8') : "";
 
+    // comma-separated list of NAS IP addresses; feeds the sidebar form and the query filter
+    $nasipaddresses = array();
+    foreach (array_map('trim', explode(',', dalo_accounting_scalar($_GET, 'nasipaddress'))) as $ip) {
+        if ($ip !== '' && preg_match(LOOSE_IP_REGEX, $ip) === 1 && !in_array($ip, $nasipaddresses, true)) {
+            $nasipaddresses[] = $ip;
+        }
+    }
+    $nasipaddress = implode(',', $nasipaddresses);
+    $nasipaddress_enc = ($nasipaddress !== '') ? htmlspecialchars($nasipaddress, ENT_QUOTES, 'UTF-8') : "";
+
     // the array $cols has multiple purposes:
     // - its keys (when non-numerical) can be used
     //   - for validating user input
@@ -66,6 +76,7 @@
                     'acctstarttime' => t('all','StartTime'),
                     'acctstoptime' => t('all','StopTime'),
                     'Time' => t('all','TotalTime'),
+                    'ChargedTraffic' => t('all','ChargedTraffic'),
                     'Upload' => t('all','Upload'),
                     'Download' => t('all','Download'),
                     'acctterminatecause' => t('all','Termination'),
@@ -102,16 +113,19 @@
     // the partial query is built starting from user input
     // and for being passed to setupNumbering and setupLinks functions
     $partial_query_params = array();
+    if ($nasipaddress !== '') {
+        $partial_query_params[] = sprintf("nasipaddress=%s", urlencode($nasipaddress));
+    }
 
     // creating $sql_WHERE for SQL query
     $_SESSION['reportType'] = 'TopUsers';
-    $_SESSION['reportExport'] = array('source'=>'rep-topusers','type'=>'TopUsers','filters'=>array('username'=>$username,'startdate'=>$startdate,'enddate'=>$enddate));
+    $_SESSION['reportExport'] = array('source'=>'rep-topusers','type'=>'TopUsers','filters'=>array('username'=>$username,'startdate'=>$startdate,'enddate'=>$enddate,'nasipaddress'=>$nasipaddress));
     $reportPDO = null;
     $reportRows = array();
     $numrows = 0;
     try {
         $reportPDO = dalo_pdo_connect($configValues, $_SESSION['location_name'] ?? 'default');
-        list($reportSQL, $reportBindings) = dalo_operator_query('rep-topusers', array('username'=>$username,'startdate'=>$startdate,'enddate'=>$enddate), $configValues);
+        list($reportSQL, $reportBindings) = dalo_operator_query('rep-topusers', array('username'=>$username,'startdate'=>$startdate,'enddate'=>$enddate,'nasipaddress'=>$nasipaddress), $configValues);
         $numrows = dalo_accounting_count($reportPDO, $reportSQL, $reportBindings, $configValues);
     } catch (Throwable $exception) { dalo_accounting_failure($exception); }
 
@@ -179,15 +193,16 @@
 
 
             list( $username, $framedIPAddress, $nasShortname, $acctStartTime, $maxAcctStopTime, $time,
-                  $upload, $download, $acctTerminateCause, $nasIPAddress ) = $row;
+                  $upload, $download, $acctTerminateCause, $nasIPAddress, $chargedTraffic ) = $row;
 
             $time = time2str($time);
+            $chargedTraffic = toxbyte(round((float)$chargedTraffic));
             $upload = toxbyte($upload);
             $download = toxbyte($download);
             $nas_tooltip = get_nas_tooltip_str($nasShortname, $nasIPAddress);
 
             $table_row = array( $username, $framedIPAddress, $nas_tooltip, $acctStartTime, $maxAcctStopTime, $time,
-                                $upload, $download, $acctTerminateCause );
+                                $chargedTraffic, $upload, $download, $acctTerminateCause );
 
             // print table row
             print_table_row($table_row);

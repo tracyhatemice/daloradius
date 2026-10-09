@@ -73,10 +73,15 @@ function dalo_operator_query($source, $filters, $config) {
         }
         $ra=$table('CONFIG_DB_TBL_RADACCT');$rn=$table('CONFIG_DB_TBL_RADNAS');
         if ($source==='rep-topusers') {
+            // charged traffic: octets weighed by the NAS multiplier (1 when the NAS has no
+            // rate), the same formula the freeradius sqlcounter traffic counters enforce
+            $nur=$table('CONFIG_DB_TBL_NASUSAGERATE');
             return array("SELECT DISTINCT(ra.username) AS username,ra.FramedIPAddress,rn.shortname AS nasshortname,
                  ra.AcctStartTime,MAX(ra.AcctStopTime),SUM(ra.AcctSessionTime) AS Time,SUM(ra.AcctInputOctets) AS Upload,
-                 SUM(ra.AcctOutputOctets) AS Download,ra.AcctTerminateCause,ra.NASIPAddress
-                 FROM $ra AS ra LEFT JOIN $rn AS rn ON rn.nasname=ra.NASIPAddress $where GROUP BY username",$bindings);
+                 SUM(ra.AcctOutputOctets) AS Download,ra.AcctTerminateCause,ra.NASIPAddress,
+                 SUM((ra.AcctInputOctets + ra.AcctOutputOctets) * COALESCE(nur.multiplier, 1)) AS ChargedTraffic
+                 FROM $ra AS ra LEFT JOIN $rn AS rn ON rn.nasname=ra.NASIPAddress
+                 LEFT JOIN $nur AS nur ON nur.nasipaddress=ra.NASIPAddress $where GROUP BY ra.username",$bindings);
         }
         $hs=$table('CONFIG_DB_TBL_DALOHOTSPOTS');$ui=$table('CONFIG_DB_TBL_DALOUSERINFO');
         return array("SELECT ra.username AS username,ra.framedipaddress AS framedipaddress,ra.callingstationid AS callingstationid,
@@ -129,7 +134,7 @@ function dalo_operator_rows(PDO $pdo,$sql,$bindings,$source,$order,$direction,$o
       'rep-batch-details'=>array('username','status','acctstarttime'),
       'rep-lastconnect'=>array('username','user','fullname','pass','reply','authdate','date'),
       'rep-online'=>array('username','framedipaddress','calledstationid','nasshortname','hotspot','acctstarttime','acctsessiontime','connectinfo_start'),
-      'rep-topusers'=>array('username','framedipaddress','nasshortname','acctstarttime','acctstoptime','Time','Upload','Download','acctterminatecause'),
+      'rep-topusers'=>array('username','framedipaddress','nasshortname','acctstarttime','acctstoptime','Time','ChargedTraffic','Upload','Download','acctterminatecause'),
       'rep-newusers'=>array('month','users'),'rep-history'=>array('section','item','creationdate','creationby','updatedate','updateby'),
       'rep-hb-dashboard'=>array('id'));
     if (!isset($keys[$source]) || !in_array($order,$keys[$source],true) || !in_array($direction,array('asc','desc'),true) ||

@@ -29,6 +29,7 @@ include('../check_operator_perm.php');
 // datatype => allowed actions
 $whitelist = array();
 $whitelist["usernames"] = array( "list" );
+$whitelist["nasipaddresses"] = array( "list" );
 
 $data = array();
 
@@ -83,7 +84,55 @@ if (isset($_GET['datatype']) && is_string($_GET['datatype']) && in_array(strtolo
             
                 break; // case "usernames"
             }
-                
+
+            case "nasipaddresses": {
+
+                switch ($action) {
+
+                    default:
+                    case "list":
+                        if (isset($_GET['nasipaddress']) && is_string($_GET['nasipaddress']) &&
+                            strlen(trim($_GET['nasipaddress'])) >= 1) {
+
+                            require_once '../../../common/includes/pdo_connection.php';
+                            require_once '../../include/management/read_helpers_pdo.php';
+                            try {
+                                $pdo = dalo_pdo_connect($configValues, $_SESSION['location_name'] ?? 'default');
+
+                                $raw_input = trim($_GET['nasipaddress']);
+                                $prefix = "";
+                                $search_term = $raw_input;
+
+                                // support comma-separated input: search only on the last token
+                                // and prefix results with the already-entered IPs
+                                if (strpos($raw_input, ',') !== false) {
+                                    $parts = explode(',', $raw_input);
+                                    $search_term = trim(array_pop($parts));
+                                    $prefix = implode(',', $parts) . ',';
+                                }
+
+                                if (strlen($search_term) >= 1) {
+                                    $table = dalo_read_table($pdo, $configValues, 'CONFIG_DB_TBL_RADACCT');
+                                    $stmt = $pdo->prepare("SELECT DISTINCT(NASIPAddress) FROM $table WHERE NASIPAddress LIKE ? ORDER BY NASIPAddress ASC");
+                                    $stmt->execute(array('%' . $search_term . '%'));
+                                    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $nasipaddress) {
+                                        $data[] = $prefix . $nasipaddress;
+                                    }
+                                }
+                                $pdo = null;
+                            } catch (Throwable $error) {
+                                http_response_code(500);
+                                $data = array('error' => 'Unable to load NAS IP addresses.');
+                            }
+
+                        }
+
+                        break; // case "list"
+                }
+
+                break; // case "nasipaddresses"
+            }
+
             // case "other category"
         }
     

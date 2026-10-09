@@ -135,7 +135,7 @@ function dalo_export_reports_query($source, $type, $filters, $configValues)
         return array($sql, $params);
     }
 
-    $validateFilters(array('startdate', 'enddate', 'username'));
+    $validateFilters(array('startdate', 'enddate', 'username', 'nasipaddress'));
     foreach (array('startdate', 'enddate') as $dateFilter) {
         if (array_key_exists($dateFilter, $filters)) {
             $validateDate($dateFilter, $filters[$dateFilter]);
@@ -160,6 +160,28 @@ function dalo_export_reports_query($source, $type, $filters, $configValues)
         $where[] = 'ra.UserName LIKE :topusers_username';
         $params[':topusers_username'] = '%' . $filters['username'] . '%';
     }
+    // comma-separated list of NAS IP addresses, matched like the single-value filters
+    if (array_key_exists('nasipaddress', $filters) && $filters['nasipaddress'] !== '') {
+        if (!is_string($filters['nasipaddress'])) {
+            throw new InvalidArgumentException('Invalid reports export NAS IP address');
+        }
+        $conditions = array();
+        foreach (array_map('trim', explode(',', $filters['nasipaddress'])) as $index => $value) {
+            if ($value === '') {
+                continue;
+            }
+            $name = ':topusers_nasipaddress_' . $index;
+            $conditions[] = 'ra.NASIPAddress LIKE ' . $name;
+            $params[$name] = '%' . $value . '%';
+        }
+        if (count($conditions) > 0) {
+            $where[] = '(' . implode(' OR ', $conditions) . ')';
+        }
+    }
+
+    // charged traffic weighs each session by its NAS multiplier, exactly like the
+    // freeradius sqlcounter traffic counters do
+    $nasUsageRate = dalo_export_table($configValues, 'CONFIG_DB_TBL_NASUSAGERATE');
 
     $sql = "SELECT DISTINCT ra.UserName AS username,
                            ra.FramedIPAddress AS framedipaddress,
@@ -170,10 +192,13 @@ function dalo_export_reports_query($source, $type, $filters, $configValues)
                            SUM(ra.AcctOutputOctets) AS Download,
                            ra.AcctTerminateCause AS acctterminatecause,
                            ra.NASIPAddress AS nasipaddress,
-                           SUM(ra.AcctInputOctets + ra.AcctOutputOctets) AS Bandwidth
+                           SUM(ra.AcctInputOctets + ra.AcctOutputOctets) AS Bandwidth,
+                           SUM((ra.AcctInputOctets + ra.AcctOutputOctets)
+                               * COALESCE(nur.multiplier, 1)) AS ChargedTraffic
                       FROM " . $radacct . " AS ra
+                 LEFT JOIN " . $nasUsageRate . " AS nur ON nur.nasipaddress = ra.NASIPAddress
                      WHERE " . implode(' AND ', $where) . "
-                  GROUP BY ra.UserName ASC
+                  GROUP BY ra.UserName
                   ORDER BY ra.UserName ASC";
 
     return array($sql, $params);

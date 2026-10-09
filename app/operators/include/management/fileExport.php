@@ -94,11 +94,12 @@ try {
             break;
 
         case 'TopUsers':
-            $output = "Username, IP Address, Start Time,Stop Time, Account Session Time, Account Input, Account Output, Total Bandwidth\n";
+            $output = "Username, IP Address, Start Time,Stop Time, Account Session Time, Account Input, Account Output, Total Bandwidth, Charged Traffic\n";
             while ($row = $res->fetch(PDO::FETCH_NUM)) {
-                // Legacy SELECT includes termination cause and NAS IP at 7/8.
+                // Legacy SELECT includes termination cause and NAS IP at 7/8;
+                // charged traffic follows total bandwidth at 10.
                 $output .= implode(',', [$row[0], $row[1], $row[2], $row[3],
-                                        $row[4], $row[5], $row[6], $row[9]]) . "\n";
+                                        $row[4], $row[5], $row[6], $row[9], $row[10]]) . "\n";
             }
             break;
 
