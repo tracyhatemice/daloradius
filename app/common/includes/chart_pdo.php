@@ -3,6 +3,9 @@
 if (strpos($_SERVER['PHP_SELF'] ?? '', '/includes/chart_pdo.php') !== false) {
     http_response_code(404); exit;
 }
+// chart.php holds the shared, database-free helpers (ratio labels, octet expressions);
+// both files are include-once guarded, so either one may be loaded first.
+require_once __DIR__ . '/chart.php';
 function dalo_chart_table($name) {
     if (!is_string($name) || preg_match('/\A[A-Za-z0-9_]+\z/D',$name)!==1) {
         throw new InvalidArgumentException('Invalid chart table');
@@ -48,3 +51,69 @@ function dalo_chart_overall_pdo(PDO $pdo,$table,$username,$category,$type,$size,
         'title'=>$category==='login'?sprintf('login statistics for user %s',$username):sprintf($title_template,$category,$username),
         'ytitle'=>$category==='login'?'Login count':ucfirst($size).' '.$category.'ed');
 }
+
+/*
+ * Charged traffic per period, split by NAS usage ratio, for one user.
+ *
+ * Returns labels (most recent period first, at most 36), datasets keyed by ratio with
+ * values aligned to labels (missing periods zero filled), the sorted ratios, title and
+ * ytitle. The borrowed PDO handle stays owned by the caller.
+ */
+function dalo_chart_overall_ratio_pdo(PDO $pdo,$table,$rate_table,$username,$category,$type,$size,$require_existing) {
+    $table=dalo_chart_table($table);$rate=dalo_chart_table($rate_table);
+    if (!is_string($username) || !in_array($category,array('upload','download','traffic'),true) ||
+        !in_array($type,array('daily','monthly','yearly'),true) || !in_array($size,array('megabytes','gigabytes'),true)) {
+        throw new InvalidArgumentException('Invalid chart selection');
+    }
+    $labels=array();$datasets=array();$ratios=array();
+    if ($username!=='') {
+        $bindings=array(':chart_username'=>$username);
+        $exists=!$require_existing || count(dalo_chart_rows($pdo,"SELECT DISTINCT(username) FROM $table WHERE username=:chart_username",$bindings))===1;
+        if ($exists) {
+            $octets=dalo_chart_traffic_octets_expr($category);
+            if ($type==='yearly') {
+                $period='YEAR(ra.AcctStartTime)';$order='YEAR(ra.AcctStartTime) DESC';
+            } elseif ($type==='monthly') {
+                $period="CONCAT(LEFT(MONTHNAME(ra.AcctStartTime),3),' (',YEAR(ra.AcctStartTime),')')";
+                $order='YEAR(ra.AcctStartTime) DESC,MONTH(ra.AcctStartTime) DESC';
+            } else {
+                $period='DATE(ra.AcctStartTime)';$order='DATE(ra.AcctStartTime) DESC';
+            }
+            $sql="SELECT $period AS period, COALESCE(nur.multiplier, 1) AS ratio,
+                         SUM($octets * COALESCE(nur.multiplier, 1)) AS charged
+                    FROM $table AS ra
+                    LEFT JOIN $rate AS nur ON nur.nasipaddress = ra.NASIPAddress
+                   WHERE ra.username=:chart_username AND ra.AcctStopTime>0
+                   GROUP BY period, ratio
+                   ORDER BY $order, ratio ASC";
+            $division=$size==='gigabytes'?1073741824:1048576;
+
+            // pivot the (period, ratio, charged) rows, keeping the 36 most recent periods
+            $per_period=array();
+            foreach (dalo_chart_rows($pdo,$sql,$bindings) as $row) {
+                $label=(string)$row[0];
+                $ratio=number_format((float)$row[1],4,'.','');
+                if (!array_key_exists($label,$per_period)) {
+                    if (count($per_period)>=36) { break; }
+                    $per_period[$label]=array();$labels[]=$label;
+                }
+                $per_period[$label][$ratio]=round((float)$row[2]/$division,1);
+                $ratios[$ratio]=true;
+            }
+
+            $ratios=array_keys($ratios);
+            sort($ratios,SORT_NUMERIC);
+            foreach ($ratios as $ratio) {
+                $values=array();
+                foreach ($labels as $label) {
+                    $values[]=array_key_exists($ratio,$per_period[$label])?$per_period[$label][$ratio]:0;
+                }
+                $datasets[$ratio]=$values;
+            }
+        }
+    }
+    return array('labels'=>$labels,'datasets'=>$datasets,'ratios'=>$ratios,
+        'title'=>sprintf('charged %s of user %s (by NAS ratio)',$category,$username),
+        'ytitle'=>ucfirst($size).' '.($category==='traffic'?'charged':$category.'ed'));
+}
+
