@@ -148,6 +148,9 @@ RUN printf '<VirtualHost *:80>\n\
 ### --- Copy application files ---
 COPY app/operators /var/www/daloradius/app/operators
 COPY app/common /var/www/daloradius/app/common
+# Schemas, the dictionary and the migrations init.sh imports on first run and on
+# upgrade. Not reachable over HTTP: the vhost denies /var/www/daloradius itself.
+COPY contrib/db /var/www/daloradius/contrib/db
 COPY init.sh /var/www/daloradius/init.sh
 
 ### --- Set permissions and create directories ---
