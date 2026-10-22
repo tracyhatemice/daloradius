@@ -12,6 +12,11 @@ MYSQL_DATABASE=${MYSQL_DATABASE:-raddb}
 MYSQL_USER=${MYSQL_USER:-raduser}
 MYSQL_PASSWORD=${MYSQL_PASSWORD:-radpass}
 MYSQL_WAIT_INTERVAL=${MYSQL_WAIT_INTERVAL:-5}
+# The MariaDB client shipped since Debian 13 verifies the server certificate by
+# default, which rejects the self-signed certificate MySQL generates for itself.
+# Keep the connection encrypted but skip chain verification unless a deployment
+# opts in (which needs a CA the client trusts, configured in my.cnf).
+MYSQL_SSL_VERIFY_SERVER_CERT=${MYSQL_SSL_VERIFY_SERVER_CERT:-0}
 
 function normalize_ldap_timeout {
     local value="$1"
@@ -84,6 +89,11 @@ function create_mysql_defaults_file {
         printf 'port=%s\n' "$MYSQL_PORT"
         printf 'user=%s\n' "$MYSQL_USER"
         printf 'password=%s\n' "$MYSQL_PASSWORD"
+        printf 'ssl-verify-server-cert=%s\n' "$MYSQL_SSL_VERIFY_SERVER_CERT"
+        # Match the session the application opens (see common/includes/pdo_connection.php).
+        # The schema keeps zero-date defaults, which a strict server rejects whenever a
+        # migration rebuilds one of those tables.
+        printf "init-command=SET SESSION sql_mode=''\n"
     } > "$MYSQL_DEFAULTS_FILE"
 }
 
@@ -234,13 +244,77 @@ function table_exists {
     local count
 
     escaped_table_name=$(printf '%s' "$table_name" | sed -e "s/'/''/g")
-    count=$(mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" --batch --skip-column-names "$MYSQL_DATABASE" <<EOSQL
+    # A failed query must never be mistaken for a missing table: callers react to
+    # "missing" by importing schema, and the dictionary import drops the existing
+    # table. Abort instead, so the container restarts rather than losing data.
+    if ! count=$(mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" --batch --skip-column-names "$MYSQL_DATABASE" <<EOSQL
 SELECT COUNT(*)
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
   AND table_name = '$escaped_table_name';
 EOSQL
-)
+    ); then
+        echo "Unable to query the database for table '$table_name'; aborting startup." >&2
+        exit 1
+    fi
+
+    case "$count" in
+        ''|*[!0-9]*)
+            echo "Unexpected result while checking for table '$table_name'; aborting startup." >&2
+            exit 1
+            ;;
+    esac
+
+    test "$count" -gt 0
+}
+
+function schema_count {
+    local description="$1"
+    local sql="$2"
+    local count
+
+    if ! count=$(mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" --batch --skip-column-names "$MYSQL_DATABASE" <<EOSQL
+$sql
+EOSQL
+    ); then
+        echo "Unable to query the database for $description; aborting startup." >&2
+        exit 1
+    fi
+
+    case "$count" in
+        ''|*[!0-9]*)
+            echo "Unexpected result while checking $description; aborting startup." >&2
+            exit 1
+            ;;
+    esac
+
+    printf '%s' "$count"
+}
+
+function column_exists {
+    local table_name="$1"
+    local column_name="$2"
+    local count
+
+    count=$(schema_count "column '$table_name.$column_name'" "SELECT COUNT(*)
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name = '$table_name'
+  AND column_name = '$column_name';")
+
+    test "$count" -gt 0
+}
+
+function index_exists {
+    local table_name="$1"
+    local index_name="$2"
+    local count
+
+    count=$(schema_count "index '$table_name.$index_name'" "SELECT COUNT(*)
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND table_name = '$table_name'
+  AND index_name = '$index_name';")
 
     test "$count" -gt 0
 }
@@ -340,14 +414,46 @@ function run_operator_ldap_migration {
         return
     fi
 
-    if test -f "$OPERATOR_LDAP_MIGRATION_MARKER" && operator_ldap_schema_ready; then
+    # The marker only records that this container applied the migration; a
+    # deployment whose schema already carries it (a fresh install, or an upgrade
+    # performed by hand) needs nothing but the marker.
+    if operator_ldap_schema_ready; then
         echo "Operator LDAP authentication migration already applied, skipping."
+        date > "$OPERATOR_LDAP_MIGRATION_MARKER"
         return
     fi
 
     echo "Applying operator LDAP authentication migration."
-    mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" \
-        < "$DALORADIUS_PATH/contrib/db/migrations/2026-09-operator-ldap.sql"
+    # Applied statement by statement rather than importing
+    # contrib/db/migrations/2026-09-operator-ldap.sql, because ADD COLUMN and ADD
+    # INDEX with IF NOT EXISTS are MariaDB-only syntax that MySQL rejects.
+    if ! column_exists "operators" "auth_source"; then
+        mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN auth_source VARCHAR(16) NOT NULL DEFAULT 'local';
+EOSQL
+    fi
+
+    if ! column_exists "operators" "external_id"; then
+        mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN external_id VARCHAR(255) DEFAULT NULL;
+EOSQL
+    fi
+
+    mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators MODIFY COLUMN password VARCHAR(95) NULL;
+
+UPDATE operators
+SET auth_source = 'local'
+WHERE auth_source IS NULL OR auth_source = '';
+EOSQL
+
+    if ! index_exists "operators" "operators_external_id_uq"; then
+        mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+CREATE UNIQUE INDEX operators_external_id_uq ON operators (external_id);
+EOSQL
+    fi
+
+    echo "Operator LDAP authentication migration completed."
     date > "$OPERATOR_LDAP_MIGRATION_MARKER"
 }
 
@@ -368,13 +474,21 @@ EOSQL
 
     if [ "$missing_columns" -lt 5 ]; then
         echo "Adding operator TOTP columns."
-        mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
-ALTER TABLE operators
-  ADD COLUMN IF NOT EXISTS totp_enabled TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS totp_last_counter BIGINT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS totp_confirmed_at DATETIME DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT DEFAULT NULL;
+        # One column at a time: ADD COLUMN IF NOT EXISTS is MariaDB-only syntax.
+        column_exists "operators" "totp_enabled" || mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN totp_enabled TINYINT(1) NOT NULL DEFAULT 0;
+EOSQL
+        column_exists "operators" "totp_secret" || mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN totp_secret VARCHAR(64) DEFAULT NULL;
+EOSQL
+        column_exists "operators" "totp_last_counter" || mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN totp_last_counter BIGINT DEFAULT NULL;
+EOSQL
+        column_exists "operators" "totp_confirmed_at" || mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN totp_confirmed_at DATETIME DEFAULT NULL;
+EOSQL
+        column_exists "operators" "totp_recovery_codes" || mysql --defaults-extra-file="$MYSQL_DEFAULTS_FILE" "$MYSQL_DATABASE" <<'EOSQL'
+ALTER TABLE operators ADD COLUMN totp_recovery_codes TEXT DEFAULT NULL;
 EOSQL
     fi
 
